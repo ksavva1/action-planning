@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 import numpy as np
 
 try:
+    from .affordance_matrices import AFFORDANCE_MATRIX_VARIANTS, get_affordance_matrix
     from .model_config import (
         DEVELOPMENTAL_STAGES,
         TASKS,
@@ -21,6 +22,7 @@ try:
         TrialResult,
     )
 except ImportError:  # Allows `python gaze_model/planning_cascade_model.py`.
+    from affordance_matrices import AFFORDANCE_MATRIX_VARIANTS, get_affordance_matrix
     from model_config import (
         DEVELOPMENTAL_STAGES,
         TASKS,
@@ -34,25 +36,9 @@ __all__ = [
     "DevelopmentalParams", "DEVELOPMENTAL_STAGES", "TaskConfig", "TASKS",
     "TimestepRecord", "TrialResult", "GazeState", "WorkingMemoryState",
     "AffordanceWeights", "MotorWeights", "HabitState", "CorrectionState",
-    "run_trial",
+    "AFFORDANCE_MATRIX_VARIANTS", "run_trial",
 ]
 
-# Rows correspond to object, target, and relational WM features; columns are
-# reach, grasp, rotate, and translate affordances. Relational rows are weighted
-# toward translate/rotate because they represent the gap to be closed.
-AFFORDANCE_BASE = np.array([
-    [.6, .1, 0, .5],
-    [.6, .1, 0, .5],
-    [0, .2, .7, 0],
-    [.1, .6, .3, .1],
-    [.1, .6, .3, .1],
-    [.3, 0, 0, .4],
-    [.3, 0, 0, .4],
-    [0, .1, .5, 0],
-    [.2, 0, .1, .8],
-    [.2, 0, .1, .8],
-    [0, .1, .9, 0],
-])
 ACTION_BIAS = np.array([.15, .1, .05, .2])
 # Affordances mostly map to matching motor dimensions, with translate feeding
 # x/y movement. This keeps the motor layer interpretable rather than learned.
@@ -109,10 +95,13 @@ class CorrectionState:
 
 
 def build_affordance_weights(params: DevelopmentalParams, rng: np.random.Generator) -> AffordanceWeights:
-    """Scale the affordance matrix by developmental coupling and add noise."""
+    """Scale the selected affordance matrix by developmental coupling and add noise."""
 
-    matrix = AFFORDANCE_BASE * params.affordance_coupling
-    matrix = np.clip(matrix + rng.normal(0, .03, AFFORDANCE_BASE.shape), 0, 1)
+    # The variant is selected before coupling/noise so experiments isolate the
+    # structure of the mapping while keeping developmental scaling unchanged.
+    base_matrix = get_affordance_matrix(params.affordance_matrix_variant)
+    matrix = base_matrix * params.affordance_coupling
+    matrix = np.clip(matrix + rng.normal(0, .03, base_matrix.shape), 0, 1)
     return AffordanceWeights(matrix, ACTION_BIAS)
 
 

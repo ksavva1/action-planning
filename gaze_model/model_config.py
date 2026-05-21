@@ -37,6 +37,7 @@ class DevelopmentalParams:
         correction_rate: gain on the delayed online error-correction signal.
         correction_delay: timesteps before feedback can affect the command.
         initiation_threshold: mean trace strength required to begin moving.
+        affordance_matrix_variant: named affordance weight matrix to use.
     """
 
     name: str = "B"
@@ -118,6 +119,11 @@ class DevelopmentalParams:
     # Higher thresholds (more mature stages) mean a longer information-gathering
     # phase but typically more accurate initial movements.
     initiation_threshold: float = 0.35
+
+    # Affordance matrix experiment parameter.
+    # Placed at the end to preserve positional construction of the original
+    # developmental parameter fields while allowing named matrix variants.
+    affordance_matrix_variant: str = "baseline"
 
 
 DEVELOPMENTAL_STAGES = {

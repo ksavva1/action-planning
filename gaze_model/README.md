@@ -38,7 +38,7 @@ LOOK                    PROCESS                 ACT
 
 **Working Memory** - stores feature values and trace strengths. Attended features decay slowly; unattended and relational features decay faster. Capacity limits weaken the least-active traces.
 
-**Affordance Estimation** - uses an interpretable hand-coded weight matrix, scaled by `affordance_coupling` and jittered per trial, to map working memory to reach, grasp, rotate, and translate affordances.
+**Affordance Estimation** - uses an interpretable hand-coded weight matrix, selected by `affordance_matrix_variant`, scaled by `affordance_coupling`, and jittered per trial, to map working memory to reach, grasp, rotate, and translate affordances.
 
 **Motor Planning** - blends affordance-driven action with direct goal-error control. Longer `planning_horizon` values make commands more anticipatory.
 
@@ -50,6 +50,8 @@ LOOK                    PROCESS                 ACT
 
 | File | Description |
 |------|-------------|
+| `affordance_matrices.py` | Named affordance-layer matrix variants and feature/action labels. |
+| `affordance_matrix_experiments.ipynb` | Notebook that compares every affordance matrix variant with tables, matrix heatmaps, outcome plots, and example trajectories. |
 | `model_config.py` | Developmental parameter presets, task definitions, and result dataclasses. |
 | `planning_cascade_model.py` | Core model state, layer functions, and `run_trial()`. Import this module from scripts or notebooks; it is not a standalone CLI. |
 | `model_utils.py` | Batch simulation and result aggregation helpers, including JSON encoding support. |
@@ -138,6 +140,24 @@ Default 4-parameter grid:
 python3 hyperparam_sweep.py --trials 15
 ```
 
+Affordance matrix experiment:
+
+```bash
+python3 hyperparam_sweep.py \
+    --param affordance_matrix_variant --values baseline object_dominant relational_dominant diffuse \
+    --trials 20
+```
+
+### Affordance matrix notebook
+
+Open `affordance_matrix_experiments.ipynb` in Jupyter to compare the variants visually. The notebook:
+
+- displays each matrix as a heatmap,
+- runs all variants across the configured tasks,
+- displays a summary table,
+- plots success, efficiency, and timestep metrics,
+- plots example trajectories for `rotate_insert`.
+
 Sweep outputs are written next to `hyperparam_sweep.py`:
 
 - `sweep_results.csv`: one row per trial.
@@ -164,3 +184,16 @@ Any field of `DevelopmentalParams` can be swept:
 python3 hyperparam_sweep.py --param correction_rate --values 0.05 0.1 0.15 0.2 0.25 0.3
 python3 hyperparam_sweep.py --param wm_decay --values 0.05 0.1 0.2 0.3 --param2 sampling_rate --values2 0.2 0.4 0.6 0.8
 ```
+
+## Affordance Matrix Variants
+
+`affordance_matrix_variant` controls the structural mapping from working-memory features to action affordances before developmental coupling and trial noise are applied.
+
+Available variants:
+
+| Variant | Purpose |
+|---------|---------|
+| `baseline` | Original mapping. Relational features strongly drive translate and rotate. |
+| `object_dominant` | Object-local pose and size drive action more strongly than relational gap features. |
+| `relational_dominant` | Object-target gap features dominate translate and rotate, testing a more comparison-based strategy. |
+| `diffuse` | Most features weakly activate several actions, modelling a less differentiated perception-action mapping. |

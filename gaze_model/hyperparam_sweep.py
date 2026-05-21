@@ -1,4 +1,8 @@
-"""Run hyperparameter sweeps and save CSV/plot outputs."""
+"""Run hyperparameter sweeps and save CSV/plot outputs.
+
+Sweep values can be numeric or string-valued fields such as
+affordance_matrix_variant.
+"""
 
 import argparse
 import csv

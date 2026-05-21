@@ -147,8 +147,9 @@ def dev_params_as_dict(stages):
         "gaze_switch_rate", "fixation_duration_mean", "target_bias", "simultaneous_rate",
         "sampling_rate", "perceptual_noise", "location_acuity", "orientation_acuity",
         "relation_acuity", "wm_capacity", "wm_decay", "wm_unfixated_decay",
-        "affordance_coupling", "planning_horizon", "habit_strength", "goal_directed_strength",
-        "correction_rate", "initiation_threshold",
+        "affordance_matrix_variant", "affordance_coupling", "planning_horizon",
+        "habit_strength", "goal_directed_strength", "correction_rate",
+        "initiation_threshold",
     ]
     return {name: {key: getattr(params, key) for key in keys} for name, params in stages.items()}
 
