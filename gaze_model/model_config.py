@@ -1,39 +1,42 @@
-"""
-Configuration dataclasses and preset constants for the planning cascade model.
-"""
+"""Configuration and result containers for the gaze planning model."""
 
 from dataclasses import dataclass
-from typing import List
 
 
 @dataclass
 class DevelopmentalParams:
     """
-    All parameters governing one developmental stage of the model.
+    Parameters for one developmental profile in the planning cascade model.
+
+    The stages are not ages directly; they are ordered profiles of increasing
+    gaze flexibility, perceptual acuity, working-memory stability, planning
+    horizon, and goal-directed control.
 
     Attributes:
-        name: identifier for this configuration
-        gaze_switch_rate: base probability of switching fixation per timestep (0-1)
-        fixation_duration_mean: mean dwell timesteps before a switch becomes likely
-        target_bias: probability of looking at the goal slot (rather than the object) when a switch occurs (0-1)
-        simultaneous_rate: probability of extracting relational features when both entities have been recently fixated (0-1)
-        sampling_rate: probability that each feature dimension is sampled on a given timestep (0-1)
-        perceptual_noise: standard deviation of Gaussian noise added to sampled percepts
-        location_acuity: noise reduction factor for position features (0-1, higher = clearer)
-        orientation_acuity: noise reduction factor for angle features (0-1)
-        relation_acuity: noise reduction factor for relational features (0-1)
-        wm_capacity: maximum number of strong memory traces maintained simultaneously
-        wm_decay: per-timestep decay rate for traces of the currently fixated entity (0-1)
-        wm_unfixated_decay: faster decay rate for traces of the non-fixated entity (0-1)
-        affordance_coupling: scaling factor applied to the percept-to-affordance weight matrix (0-1)
-        affordance_noise: standard deviation of noise in affordance estimation
-        planning_horizon: timesteps of motor lookahead (1 = purely reactive, 6 = anticipatory)
-        motor_noise: standard deviation of execution noise added to motor commands
-        habit_strength: weight of the habitual translate-first bias (0-1)
-        goal_directed_strength: weight of goal-directed motor control (0-1)
-        correction_rate: gain of the online error-correction signal (0-1)
-        correction_delay: timesteps of processing lag before correction activates
-        initiation_threshold: minimum mean WM strength required to begin movement (0-1)
+        name: identifier for this configuration.
+        gaze_switch_rate: base probability of switching fixation per timestep.
+        fixation_duration_mean: mean dwell timesteps before switching is likely.
+        target_bias: probability of remaining target-oriented after looking away
+            from the target; higher values model stronger goal-directed attention.
+        simultaneous_rate: probability of extracting relational features when
+            object and target have both been fixated recently.
+        sampling_rate: probability that each visible feature is sampled.
+        perceptual_noise: standard deviation of Gaussian noise added to percepts.
+        location_acuity: noise reduction factor for x/y features.
+        orientation_acuity: noise reduction factor for angle and size features.
+        relation_acuity: noise reduction factor for relational gap features.
+        wm_capacity: maximum number of strong traces maintained at once.
+        wm_decay: per-timestep decay for currently attended features.
+        wm_unfixated_decay: faster decay for unattended and relational features.
+        affordance_coupling: strength of perception-to-action mapping.
+        affordance_noise: standard deviation of affordance activation noise.
+        planning_horizon: relative lookahead depth, capped at 6 in motor planning.
+        motor_noise: standard deviation of motor command noise.
+        habit_strength: weight of the translate-first habit.
+        goal_directed_strength: weight of goal-directed motor control.
+        correction_rate: gain on the delayed online error-correction signal.
+        correction_delay: timesteps before feedback can affect the command.
+        initiation_threshold: mean trace strength required to begin moving.
     """
 
     name: str = "B"
@@ -118,102 +121,45 @@ class DevelopmentalParams:
 
 
 DEVELOPMENTAL_STAGES = {
-    "A": DevelopmentalParams(
-        name="A",
-        gaze_switch_rate=0.12,
-        fixation_duration_mean=5.0,
-        target_bias=0.20,
-        simultaneous_rate=0.03,
-        sampling_rate=0.30,
-        perceptual_noise=0.35,
-        location_acuity=0.70,
-        orientation_acuity=0.15,
-        relation_acuity=0.05,
-        wm_capacity=2,
-        wm_decay=0.18,
-        wm_unfixated_decay=0.40,
-        affordance_coupling=0.25,
-        affordance_noise=0.25,
-        planning_horizon=1,
-        motor_noise=0.20,
-        habit_strength=0.78,
-        goal_directed_strength=0.22,
-        correction_rate=0.12,
-        correction_delay=2,
-        initiation_threshold=0.15,
-    ),
-    "B": DevelopmentalParams(
-        name="B",
-        gaze_switch_rate=0.25,
-        fixation_duration_mean=3.5,
-        target_bias=0.35,
-        simultaneous_rate=0.12,
-        sampling_rate=0.45,
-        perceptual_noise=0.28,
-        location_acuity=0.85,
-        orientation_acuity=0.30,
-        relation_acuity=0.12,
-        wm_capacity=3,
-        wm_decay=0.12,
-        wm_unfixated_decay=0.28,
-        affordance_coupling=0.40,
-        affordance_noise=0.22,
-        planning_horizon=2,
-        motor_noise=0.22,
-        habit_strength=0.70,
-        goal_directed_strength=0.30,
-        correction_rate=0.14,
-        correction_delay=2,
-        initiation_threshold=0.28,
-    ),
-    "C": DevelopmentalParams(
-        name="C",
-        gaze_switch_rate=0.40,
-        fixation_duration_mean=2.5,
-        target_bias=0.50,
-        simultaneous_rate=0.28,
-        sampling_rate=0.65,
-        perceptual_noise=0.16,
-        location_acuity=0.93,
-        orientation_acuity=0.55,
-        relation_acuity=0.30,
-        wm_capacity=4,
-        wm_decay=0.08,
-        wm_unfixated_decay=0.18,
-        affordance_coupling=0.60,
-        affordance_noise=0.14,
-        planning_horizon=4,
-        motor_noise=0.16,
-        habit_strength=0.40,
-        goal_directed_strength=0.60,
-        correction_rate=0.22,
-        correction_delay=1,
-        initiation_threshold=0.40,
-    ),
-    "D": DevelopmentalParams(
-        name="D",
-        gaze_switch_rate=0.55,
-        fixation_duration_mean=2.0,
-        target_bias=0.60,
-        simultaneous_rate=0.50,
-        sampling_rate=0.85,
-        perceptual_noise=0.08,
-        location_acuity=0.98,
-        orientation_acuity=0.88,
-        relation_acuity=0.55,
-        wm_capacity=5,
-        wm_decay=0.04,
-        wm_unfixated_decay=0.10,
-        affordance_coupling=0.85,
-        affordance_noise=0.08,
-        planning_horizon=6,
-        motor_noise=0.08,
-        habit_strength=0.10,
-        goal_directed_strength=0.90,
-        correction_rate=0.28,
-        correction_delay=0,
-        initiation_threshold=0.45,
-    ),
+    name: DevelopmentalParams(name=name, **params)
+    for name, params in {
+        "A": dict(
+            gaze_switch_rate=0.12, fixation_duration_mean=5.0, target_bias=0.20,
+            simultaneous_rate=0.03, sampling_rate=0.30, perceptual_noise=0.35,
+            location_acuity=0.70, orientation_acuity=0.15, relation_acuity=0.05,
+            wm_capacity=2, wm_decay=0.18, wm_unfixated_decay=0.40,
+            affordance_coupling=0.25, affordance_noise=0.25, planning_horizon=1,
+            motor_noise=0.20, habit_strength=0.78, goal_directed_strength=0.22,
+            correction_rate=0.12, correction_delay=2, initiation_threshold=0.15,
+        ),
+        "B": dict(
+            gaze_switch_rate=0.25, fixation_duration_mean=3.5, target_bias=0.35,
+            simultaneous_rate=0.12, sampling_rate=0.45, perceptual_noise=0.28,
+            location_acuity=0.85, orientation_acuity=0.30, relation_acuity=0.12,
+            wm_capacity=3, wm_decay=0.12, wm_unfixated_decay=0.28,
+            affordance_coupling=0.40, affordance_noise=0.22, planning_horizon=2,
+            motor_noise=0.22, habit_strength=0.70, goal_directed_strength=0.30,
+            correction_rate=0.14, correction_delay=2, initiation_threshold=0.28,
+        ),
+        "C": dict(
+            gaze_switch_rate=0.40, fixation_duration_mean=2.5, target_bias=0.50,
+            simultaneous_rate=0.28, sampling_rate=0.65, perceptual_noise=0.16,
+            location_acuity=0.93, orientation_acuity=0.55, relation_acuity=0.30,
+            wm_capacity=4, wm_decay=0.08, wm_unfixated_decay=0.18,
+            affordance_coupling=0.60, affordance_noise=0.14, planning_horizon=4,
+            motor_noise=0.16, habit_strength=0.40, goal_directed_strength=0.60,
+            correction_rate=0.22, correction_delay=1, initiation_threshold=0.40,
+        ),
+        "D": dict(
+            gaze_switch_rate=0.55, fixation_duration_mean=2.0, target_bias=0.60,
+            simultaneous_rate=0.50, sampling_rate=0.85, perceptual_noise=0.08,
+            location_acuity=0.98, orientation_acuity=0.88, relation_acuity=0.55,
+            wm_capacity=5, wm_decay=0.04, wm_unfixated_decay=0.10,
+            affordance_coupling=0.85, affordance_noise=0.08, planning_horizon=6,
+            motor_noise=0.08, habit_strength=0.10, goal_directed_strength=0.90,
+            correction_rate=0.28, correction_delay=0, initiation_threshold=0.45,
+        ),
+    }.items()
 }
 
 
@@ -247,34 +193,29 @@ class TaskConfig:
 
 
 TASKS = {
-    "rotate_insert": TaskConfig(
-        name="rotate_insert",
-        start_x=0.0, start_y=0.0, start_angle=0.0,
-        goal_x=0.5, goal_y=0.5, goal_angle=1.2,
-        obj_width=0.3, obj_height=0.6,
-        max_timesteps=120,
-    ),
-    "translate_only": TaskConfig(
-        name="translate_only",
-        start_x=0.0, start_y=0.0, start_angle=0.0,
-        goal_x=0.6, goal_y=0.4, goal_angle=0.0,
-        obj_width=0.4, obj_height=0.4,
-        max_timesteps=120,
-    ),
-    "rotate_only": TaskConfig(
-        name="rotate_only",
-        start_x=0.5, start_y=0.5, start_angle=0.0,
-        goal_x=0.5, goal_y=0.5, goal_angle=1.5,
-        obj_width=0.3, obj_height=0.6,
-        max_timesteps=120,
-    ),
-    "complex_manipulation": TaskConfig(
-        name="complex_manipulation",
-        start_x=-0.3, start_y=-0.2, start_angle=-0.5,
-        goal_x=0.5, goal_y=0.6, goal_angle=1.0,
-        obj_width=0.25, obj_height=0.7,
-        max_timesteps=120,
-    ),
+    name: TaskConfig(name=name, **params)
+    for name, params in {
+        "rotate_insert": dict(
+            start_x=0.0, start_y=0.0, start_angle=0.0,
+            goal_x=0.5, goal_y=0.5, goal_angle=1.2,
+            obj_width=0.3, obj_height=0.6, max_timesteps=120,
+        ),
+        "translate_only": dict(
+            start_x=0.0, start_y=0.0, start_angle=0.0,
+            goal_x=0.6, goal_y=0.4, goal_angle=0.0,
+            obj_width=0.4, obj_height=0.4, max_timesteps=120,
+        ),
+        "rotate_only": dict(
+            start_x=0.5, start_y=0.5, start_angle=0.0,
+            goal_x=0.5, goal_y=0.5, goal_angle=1.5,
+            obj_width=0.3, obj_height=0.6, max_timesteps=120,
+        ),
+        "complex_manipulation": dict(
+            start_x=-0.3, start_y=-0.2, start_angle=-0.5,
+            goal_x=0.5, goal_y=0.6, goal_angle=1.0,
+            obj_width=0.25, obj_height=0.7, max_timesteps=120,
+        ),
+    }.items()
 }
 
 
@@ -341,7 +282,7 @@ class TrialResult:
     timesteps_used: int
     final_pos_error: float
     final_angle_error: float
-    trajectory: List[TimestepRecord]
+    trajectory: list[TimestepRecord]
     movement_onset: int
     rotation_onset: int
     translation_onset: int
@@ -349,4 +290,4 @@ class TrialResult:
     total_gaze_switches: int
     object_fixation_pct: float
     target_fixation_pct: float
-    gaze_history: List[str]
+    gaze_history: list[str]

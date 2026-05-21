@@ -1,18 +1,18 @@
 # Planning Model
 
-A connectionist computational model of infant action planning in object manipulation tasks. Simulates how infants gather information by looking back and forth between an object and a target, then plan and execute movement.
+A computational model of infant action planning in object manipulation tasks. It simulates how an agent looks between an object and a target slot, samples noisy perceptual information, maintains that information in working memory, and then plans and corrects movement.
 
 ## Background
 
 The model captures:
 
-- **Translation bias**: younger parameter configurations default to translating the object toward the target before rotating it, whereas more mature configurations rotate and translate simultaneously.
-- **Relational information**: displacement and angular difference between object and target can only be extracted when both have been recently fixated, governed by a `simultaneous_rate` parameter.
-- **Gradual development**: a shift from reactive correction to partial planning to full anticipatory control, driven by increases in planning horizon, gaze switch rate, and working memory capacity.
+- **Translation bias**: younger parameter configurations rely more on a translate-first habitual motor routine; more mature configurations rely more on goal-directed control.
+- **Relational information**: displacement and angular difference between object and target can only be sampled when both have been fixated recently, governed by `simultaneous_rate`.
+- **Gradual development**: later configurations have higher gaze-switching, better perceptual acuity, stronger working memory, longer planning horizon, less habit, and faster online correction.
 
 ## Architecture
 
-The network consists of six interconnected modules:
+The simulation contains these components:
 
 ```
 LOOK                    PROCESS                 ACT
@@ -32,28 +32,31 @@ LOOK                    PROCESS                 ACT
                      feedback                  └──────────────┘
 ```
 
-**Gaze Controller** - switches fixation between the held object and the target with a hazard-function model. Parameters: `gaze_switch_rate`, `fixation_duration_mean`, `target_bias`.
+**Gaze Controller** - switches fixation between object and target with a dwell-time hazard model. Parameters: `gaze_switch_rate`, `fixation_duration_mean`, `target_bias`.
 
-**Perceptual Sampling** - Object features (x, y, angle, width, height) are sampled when looking at the object; target features (goal x, y, angle) when looking at the target. Relational features (dx, dy, d_angle) require recent fixation of both entities.
+**Perceptual Sampling** - samples object features (x, y, angle, width, height) when looking at the object, target features (goal x, y, angle) when looking at the target, and relational features (dx, dy, d_angle) when both representations are recently active.
 
-**Working Memory** - Maintains separate traces for object, target, and relational features with capacity limits. Traces of the non-fixated entity decay faster (`wm_unfixated_decay`).
+**Working Memory** - stores feature values and trace strengths. Attended features decay slowly; unattended and relational features decay faster. Capacity limits weaken the least-active traces.
 
-**Affordance Estimation** - A learned weight matrix mapping the working memory state to four affordances: reach, grasp, rotate, translate.
+**Affordance Estimation** - uses an interpretable hand-coded weight matrix, scaled by `affordance_coupling` and jittered per trial, to map working memory to reach, grasp, rotate, and translate affordances.
 
-**Motor Planning** - Generates motor commands with a variable lookahead horizon. Near the goal, blends toward a direct proportional controller to prevent overshoot.
+**Motor Planning** - blends affordance-driven action with direct goal-error control. Longer `planning_horizon` values make commands more anticipatory.
 
-**Habitual Bias** - Encodes the translate-first default. The habitual phase length scales with `habit_strength`, producing the shift from sequential to simultaneous movement.
+**Habitual Bias** - adds a translate-first routine whose influence scales with `habit_strength` and fades across a trial.
 
-**Online Correction** — delayed, error-driven adjustments that improve with development.
+**Online Correction** - applies delayed error correction; mature stages use shorter delays and stronger correction rates.
 
 ## Files
 
 | File | Description |
 |------|-------------|
-| `planning_cascade_model.py` | Network layers, task definitions, simulation engine, and batch runner. Generates `simulation_results.json` and should be run first. |
-| `animate_model.py` | Matplotlib animation showing 4 parameter configurations performing a task simultaneously. Displays the object, target slot, gaze line, and movement trace. |
-| `hyperparam_sweep.py` | Systematic parameter sweep. Supports 1D sweeps, 2D sweeps (with heatmaps), and full grid sweeps. |
-| `planning_cascade_dashboard.html` | HTML dashboard with architecture diagram, parameter profiles, simulation results, gaze statistics, and trajectory views. |
+| `model_config.py` | Developmental parameter presets, task definitions, and result dataclasses. |
+| `planning_cascade_model.py` | Core model state, layer functions, and `run_trial()`. Import this module from scripts or notebooks; it is not a standalone CLI. |
+| `model_utils.py` | Batch simulation and result aggregation helpers, including JSON encoding support. |
+| `animate_model.py` | Matplotlib animation comparing all four developmental stages on one task. |
+| `hyperparam_sweep.py` | CLI for 1D, 2D, and default grid hyperparameter sweeps. |
+| `architecture_diagram.png` | Static architecture image. |
+| `gaze_model_animation.mov` | Example rendered animation. |
 | `requirements.txt` | Python dependencies. |
 
 ## Setup
@@ -62,65 +65,102 @@ LOOK                    PROCESS                 ACT
 pip install -r requirements.txt
 ```
 
-
 ## Usage
 
-### Run simulation
+The command examples in this section assume your current directory is `gaze_model/`.
+From the repository root, prefix script paths with `gaze_model/` and use package imports such as `from gaze_model.planning_cascade_model import ...`.
+
+### Run one trial
 
 ```bash
-python planning_cascade_model.py
+python3 - <<'PY'
+from planning_cascade_model import DEVELOPMENTAL_STAGES, TASKS, run_trial
+
+result = run_trial(DEVELOPMENTAL_STAGES["D"], TASKS["rotate_insert"], seed=42)
+print(result.success, result.timesteps_used, result.final_pos_error, result.final_angle_error)
+PY
 ```
 
-This runs 25 trials per condition across 4 parameter configurations (A–D) and 4 tasks, writing results to `simulation_results.json` in the same directory.
+From the repository root, import with the package path:
+
+```python
+from gaze_model.planning_cascade_model import DEVELOPMENTAL_STAGES, TASKS, run_trial
+```
+
+### Run a batch simulation
+
+```bash
+python3 - <<'PY'
+import json
+from model_utils import NumpyEncoder, compile_results, run_simulation
+
+results = run_simulation(n_trials=20, seed=42)
+with open("simulation_results.json", "w") as output_file:
+    json.dump(compile_results(results), output_file, cls=NumpyEncoder, indent=2)
+PY
+```
 
 ### Animate the model
 
-Animated output:
+Show an interactive animation:
+
 ```bash
-python animate_model.py
+python3 animate_model.py
 ```
 
-Save as GIF:
+Save a GIF:
+
 ```bash
-python animate_model.py --save
+python3 animate_model.py --task rotate_insert --save --seed 42
 ```
+
+The animation CLI supports these tasks: `rotate_insert`, `translate_only`, `rotate_only`, and `complex_manipulation`.
 
 ### Hyperparameter sweep
 
-**Single parameter sweep** - vary one parameter and plot its effect:
+Single-parameter sweep:
+
 ```bash
-python hyperparam_sweep.py --param gaze_switch_rate --values 0.1 0.3 0.5 0.7
+python3 hyperparam_sweep.py --param gaze_switch_rate --values 0.1 0.3 0.5 0.7
 ```
 
-**Two-param sweep** - produces heatmaps:
+Two-parameter sweep with heatmaps:
+
 ```bash
-python hyperparam_sweep.py \
+python3 hyperparam_sweep.py \
     --param gaze_switch_rate --values 0.1 0.25 0.4 0.55 0.7 \
     --param2 habit_strength --values2 0.1 0.3 0.5 0.7 0.9
 ```
 
-**Default 4-param grid** (gaze_switch_rate × habit_strength × planning_horizon × wm_capacity):
+Default 4-parameter grid:
+
 ```bash
-python hyperparam_sweep.py --trials 15
+python3 hyperparam_sweep.py --trials 15
 ```
+
+Sweep outputs are written next to `hyperparam_sweep.py`:
+
+- `sweep_results.csv`: one row per trial.
+- `sweep_summary.csv`: aggregated rows by parameter combination and task.
+- `sweep_plots.png`: metric plots for each swept parameter.
+- `sweep_heatmap.png`: generated only for 2-parameter sweeps.
 
 ## Parameter Configurations
 
-Four default configs:
+Four default developmental profiles are defined in `DEVELOPMENTAL_STAGES`:
 
-| Config | Strategy | Habit | Horizon | WM | Gaze Switch | 
-|--------|----------|-------|---------|-----|-------------|
-| A | Translate then rotate | High (78%) | 1 | 2 | Low (0.12) |
+| Config | Strategy | Habit | Horizon | WM | Gaze Switch |
+|--------|----------|-------|---------|----|-------------|
+| A | Strong translate-first habit | 78% | 1 | 2 | 0.12 |
 | B | Mostly sequential | 70% | 2 | 3 | 0.25 |
-| C | Partially simultaneous | 40% | 4 | 4 | 0.40 |
-| D | Fully simultaneous | Low (10%) | 6 | 5 | High (0.55) |
+| C | Mixed habit and goal-directed control | 40% | 4 | 4 | 0.40 |
+| D | Mostly goal-directed control | 10% | 6 | 5 | 0.55 |
 
-
-## Custom sweep params
+## Custom Sweep Params
 
 Any field of `DevelopmentalParams` can be swept:
 
 ```bash
-python hyperparam_sweep.py --param correction_rate --values 0.05 0.1 0.15 0.2 0.25 0.3
-python hyperparam_sweep.py --param wm_decay --values 0.05 0.1 0.2 0.3 --param2 sampling_rate --values2 0.2 0.4 0.6 0.8
+python3 hyperparam_sweep.py --param correction_rate --values 0.05 0.1 0.15 0.2 0.25 0.3
+python3 hyperparam_sweep.py --param wm_decay --values 0.05 0.1 0.2 0.3 --param2 sampling_rate --values2 0.2 0.4 0.6 0.8
 ```
