@@ -5,38 +5,40 @@ Simulation runner and result-aggregation utilities for the planning cascade mode
 import json
 import os
 import sys
-
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from model_config import DEVELOPMENTAL_STAGES, TASKS
 
 
-# JSON serialisation
 class NumpyEncoder(json.JSONEncoder):
-    """JSON encoder that handles numpy bool_, integer, floating, and ndarray types."""
-    def default(self, o):
-        if isinstance(o, np.bool_): return bool(o)
-        if isinstance(o, np.integer): return int(o)
-        if isinstance(o, np.floating): return float(o)
-        if isinstance(o, np.ndarray): return o.tolist()
-        return super().default(o)
+    """JSON encoder."""
+
+    def default(self, obj):
+        if isinstance(obj, np.bool_):
+            return bool(obj)
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
 
 
-# Simulation runner
 def run_simulation(stages=None, tasks=None, n_trials=20, seed=42):
-    """Run all stage × task × trial combinations and return the raw results list.
+    """Run all stage x task x trial combinations and return the raw results list.
 
     Args:
         stages: list of stage name strings (default: all in DEVELOPMENTAL_STAGES)
         tasks: list of task name strings (default: all in TASKS)
-        n_trials: int number of trials per (stage, task) pair
-        seed: int base random seed; each trial uses seed + trial_index
+        n_trials: number of trials per (stage, task) pair
+        seed: base random seed; each trial uses seed + trial_index
 
     Returns:
         list of TrialResult, one per trial.
     """
-    from planning_cascade_model import PlanningCascadeNetwork
+    from planning_cascade_model import run_trial
 
     if stages is None:
         stages = list(DEVELOPMENTAL_STAGES.keys())
@@ -44,17 +46,16 @@ def run_simulation(stages=None, tasks=None, n_trials=20, seed=42):
         tasks = list(TASKS.keys())
 
     results = []
-    for sn in stages:
-        p = DEVELOPMENTAL_STAGES[sn]
-        for tn in tasks:
-            task = TASKS[tn]
-            for i in range(n_trials):
-                net = PlanningCascadeNetwork(p, seed=seed + i)
-                results.append(net.run_trial(task, trial_id=i))
+    for stage_name in stages:
+        stage_params = DEVELOPMENTAL_STAGES[stage_name]
+        for task_name in tasks:
+            task = TASKS[task_name]
+            for trial_index in range(n_trials):
+                results.append(run_trial(stage_params, task, seed=seed + trial_index, trial_id=trial_index))
+
     return results
 
 
-# Result aggregation
 def group_results(results):
     """Group a flat list of TrialResult objects by (params_name, task_name).
 
@@ -65,8 +66,9 @@ def group_results(results):
         dict mapping (params_name, task_name) → list of TrialResult
     """
     groups = {}
-    for r in results:
-        groups.setdefault((r.params_name, r.task_name), []).append(r)
+    for trial_result in results:
+        group_key = (trial_result.params_name, trial_result.task_name)
+        groups.setdefault(group_key, []).append(trial_result)
     return groups
 
 
@@ -74,32 +76,42 @@ def summarise_group(stage, task, trials):
     """Compute aggregated statistics for one (stage, task) group of trials.
 
     Args:
-        stage: str stage name
-        task: str task name
+        stage: stage name string
+        task: task name string
         trials: list of TrialResult sharing this stage and task
 
     Returns:
         dict of summary statistics
     """
-    n = len(trials)
+    num_trials = len(trials)
+
     return {
-        "stage": stage, "task": task, "n_trials": n,
-        "success_rate": sum(t.success for t in trials) / n,
-        "mean_timesteps": float(np.mean([t.timesteps_used for t in trials])),
-        "mean_pos_error": float(np.mean([t.final_pos_error for t in trials])),
-        "mean_angle_error": float(np.mean([t.final_angle_error for t in trials])),
-        "mean_efficiency": float(np.mean([t.efficiency for t in trials])),
-        "mean_movement_onset": float(np.mean([t.movement_onset for t in trials])),
-        "mean_gaze_switches": float(np.mean([t.total_gaze_switches for t in trials])),
-        "mean_object_fixation_pct": float(np.mean([t.object_fixation_pct for t in trials])),
-        "mean_target_fixation_pct": float(np.mean([t.target_fixation_pct for t in trials])),
+        "stage": stage,
+        "task": task,
+        "n_trials": num_trials,
+        "success_rate": sum(trial.success for trial in trials) / num_trials,
+        "mean_timesteps": float(np.mean([trial.timesteps_used for trial in trials])),
+        "mean_pos_error": float(np.mean([trial.final_pos_error for trial in trials])),
+        "mean_angle_error": float(np.mean([trial.final_angle_error for trial in trials])),
+        "mean_efficiency": float(np.mean([trial.efficiency for trial in trials])),
+        "mean_movement_onset": float(np.mean([trial.movement_onset for trial in trials])),
+        "mean_gaze_switches": float(np.mean([trial.total_gaze_switches for trial in trials])),
+        "mean_object_fixation_pct": float(np.mean([trial.object_fixation_pct for trial in trials])),
+        "mean_target_fixation_pct": float(np.mean([trial.target_fixation_pct for trial in trials])),
+        # Translation onset before rotation onset is a key behavioural index:
+        # younger agents with stronger habitual biases show this pattern more often,
+        # even when the task geometry requires rotation first.
         "translate_before_rotate_rate": sum(
-            1 for t in trials if t.translation_onset < t.rotation_onset) / n,
+            1 for trial in trials if trial.translation_onset < trial.rotation_onset
+        ) / num_trials,
     }
 
 
 def best_trial_trajectory(trials):
     """Return serialisable trajectory data for the trial closest to the goal.
+
+    The best trial is selected by combined position and angle error so that
+    the animation always shows the most informative example for each condition.
 
     Args:
         trials: list of TrialResult
@@ -107,14 +119,27 @@ def best_trial_trajectory(trials):
     Returns:
         dict with keys "steps", "success", "gaze_history"
     """
-    best = min(trials, key=lambda t: t.final_pos_error + t.final_angle_error)
+    best_trial = min(trials, key=lambda trial: trial.final_pos_error + trial.final_angle_error)
+
     steps = [
-        {"t": s.t, "x": round(s.obj_x, 4), "y": round(s.obj_y, 4),
-         "a": round(s.obj_angle, 4), "gz": s.gaze_target, "mv": s.movement_started,
-         "pe": round(s.pos_error, 4), "ae": round(s.angle_error, 4)}
-        for s in best.trajectory
+        {
+            "t": timestep_record.t,
+            "x": round(timestep_record.obj_x, 4),
+            "y": round(timestep_record.obj_y, 4),
+            "a": round(timestep_record.obj_angle, 4),
+            "gz": timestep_record.gaze_target,
+            "mv": timestep_record.movement_started,
+            "pe": round(timestep_record.pos_error, 4),
+            "ae": round(timestep_record.angle_error, 4),
+        }
+        for timestep_record in best_trial.trajectory
     ]
-    return {"steps": steps, "success": best.success, "gaze_history": best.gaze_history}
+
+    return {
+        "steps": steps,
+        "success": best_trial.success,
+        "gaze_history": best_trial.gaze_history,
+    }
 
 
 def dev_params_as_dict(stages_dict):
@@ -126,14 +151,17 @@ def dev_params_as_dict(stages_dict):
     Returns:
         dict of {stage_name: {param_name: value}}
     """
-    keys = [
+    param_keys = [
         "gaze_switch_rate", "fixation_duration_mean", "target_bias", "simultaneous_rate",
         "sampling_rate", "perceptual_noise", "location_acuity", "orientation_acuity",
         "relation_acuity", "wm_capacity", "wm_decay", "wm_unfixated_decay",
         "affordance_coupling", "planning_horizon", "habit_strength", "goal_directed_strength",
         "correction_rate", "initiation_threshold",
     ]
-    return {name: {k: getattr(p, k) for k in keys} for name, p in stages_dict.items()}
+    return {
+        stage_name: {key: getattr(stage_params, key) for key in param_keys}
+        for stage_name, stage_params in stages_dict.items()
+    }
 
 
 def compile_results(results):
@@ -144,15 +172,16 @@ def compile_results(results):
 
     Returns:
         dict with keys "summary", "trajectories", "developmental_params",
-            "stages", "tasks" — ready for JSON serialisation.
+        "stages", "tasks" — ready for JSON serialisation.
     """
     groups = group_results(results)
-    summary, trajectories = {}, {}
+    summary = {}
+    trajectories = {}
 
     for (stage, task), trials in groups.items():
-        k = f"{stage}_{task}"
-        summary[k] = summarise_group(stage, task, trials)
-        trajectories[k] = best_trial_trajectory(trials)
+        group_key = f"{stage}_{task}"
+        summary[group_key] = summarise_group(stage, task, trials)
+        trajectories[group_key] = best_trial_trajectory(trials)
 
     return {
         "summary": summary,
