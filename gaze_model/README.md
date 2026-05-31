@@ -12,9 +12,7 @@ The model captures:
 
 ## Architecture
 
-The simulation contains these components:
-
-```
+```text
 LOOK                    PROCESS                 ACT
 ┌──────────┐           ┌──────────────┐        ┌──────────────┐
 │  Gaze    │──────────▶│   Working    │───────▶│    Motor     │
@@ -38,7 +36,7 @@ LOOK                    PROCESS                 ACT
 
 **Working Memory** - stores feature values and trace strengths. Attended features decay slowly; unattended and relational features decay faster. Capacity limits weaken the least-active traces.
 
-**Affordance Estimation** - uses an interpretable hand-coded weight matrix, selected by `affordance_matrix_variant`, scaled by `affordance_coupling`, and jittered per trial, to map working memory to reach, grasp, rotate, and translate affordances.
+**Affordance Estimation** - uses a hand-coded weight matrix, selected by `affordance_matrix_variant`, scaled by `affordance_coupling`, and jittered per trial, to map working memory to reach, grasp, rotate, and translate affordances.
 
 **Motor Planning** - blends affordance-driven action with direct goal-error control. Longer `planning_horizon` values make commands more anticipatory.
 
@@ -49,150 +47,93 @@ LOOK                    PROCESS                 ACT
 ## Files
 
 | File | Description |
-|------|-------------|
+| ---- | ----------- |
+| `model_utils.py` | `DevelopmentalParams`, `TaskConfig`, `TimestepRecord`, and `TrialResult` dataclasses; batch simulation (`run_simulation`), grouping, aggregation, and JSON helpers. |
+| `planning_cascade_model.py` | Core model state, layer functions, and `run_trial()`. |
 | `affordance_matrices.py` | Named affordance-layer matrix variants and feature/action labels. |
-| `affordance_matrix_experiments.ipynb` | Notebook that compares every affordance matrix variant with tables, matrix heatmaps, outcome plots, and example trajectories. |
-| `model_config.py` | Developmental parameter presets, task definitions, and result dataclasses. |
-| `planning_cascade_model.py` | Core model state, layer functions, and `run_trial()`. Import this module from scripts or notebooks; it is not a standalone CLI. |
-| `model_utils.py` | Batch simulation and result aggregation helpers, including JSON encoding support. |
-| `animate_model.py` | Matplotlib animation comparing all four developmental stages on one task. |
-| `hyperparam_sweep.py` | CLI for 1D, 2D, and default grid hyperparameter sweeps. |
-| `architecture_diagram.png` | Static architecture image. |
-| `gaze_model_animation.mov` | Example rendered animation. |
+| `animate_model.py` | Matplotlib animation library - call `animate(task, stages)` from a notebook. |
+| `experiments.ipynb` | Cross-task × stage experiment: 3 × 3 distance/rotation grid, success heatmaps, metric bar charts, trajectory plots. |
+| `parameter_sweep.ipynb` | One parameter at a time sensitivity sweep across all 20 `DevelopmentalParams` fields; heatmap, per-group plots, and an animated 6 × 3 trial comparison. |
+| `affordance_matrix_experiments.ipynb` | Compares every affordance matrix variant across developmental stages with tables, heatmaps, and trajectory plots. |
+| `param_sweep_animation.html` | Pre-rendered HTML animation from `parameter_sweep.ipynb`. |
+| `output_docs/` | Generated documentation output. |
 | `requirements.txt` | Python dependencies. |
 
-## Setup
-
-```bash
-pip install -r requirements.txt
-```
 
 ## Usage
-
-The command examples in this section assume your current directory is `gaze_model/`.
-From the repository root, prefix script paths with `gaze_model/` and use package imports such as `from gaze_model.planning_cascade_model import ...`.
+Stage presets and task definitions are the notebook's responsibility. Pass `DevelopmentalParams` and `TaskConfig` objects explicitly to every library function.
 
 ### Run one trial
 
-```bash
-python3 - <<'PY'
-from planning_cascade_model import DEVELOPMENTAL_STAGES, TASKS, run_trial
-
-result = run_trial(DEVELOPMENTAL_STAGES["D"], TASKS["rotate_insert"], seed=42)
-print(result.success, result.timesteps_used, result.final_pos_error, result.final_angle_error)
-PY
-```
-
-From the repository root, import with the package path:
-
 ```python
-from gaze_model.planning_cascade_model import DEVELOPMENTAL_STAGES, TASKS, run_trial
+import math
+from model_utils import DevelopmentalParams, TaskConfig
+from planning_cascade_model import run_trial
+
+params = DevelopmentalParams(
+    name="stage_D",
+    gaze_switch_rate=0.55, fixation_duration_mean=2.0, target_bias=0.60,
+    simultaneous_rate=0.50, sampling_rate=0.85, perceptual_noise=0.08,
+    location_acuity=0.98, orientation_acuity=0.88, relation_acuity=0.55,
+    wm_capacity=5, wm_decay=0.04, wm_unfixated_decay=0.10,
+    affordance_coupling=0.85, affordance_noise=0.08, planning_horizon=6,
+    motor_noise=0.08, habit_strength=0.10, goal_directed_strength=0.90,
+    correction_rate=0.28, correction_delay=0, initiation_threshold=0.45,
+)
+
+task = TaskConfig(
+    name="medium_rot",
+    start_x=0.0, start_y=0.0, start_angle=0.0,
+    goal_x=0.5,  goal_y=0.0,  goal_angle=math.pi / 4,
+    obj_width=0.3, obj_height=0.5, max_timesteps=120,
+)
+
+result = run_trial(params, task, seed=42)
+print(result.success, result.timesteps_used, result.final_pos_error)
 ```
 
 ### Run a batch simulation
 
-```bash
-python3 - <<'PY'
-import json
-from model_utils import NumpyEncoder, compile_results, run_simulation
+```python
+from model_utils import run_simulation, group_results, summarise_group
 
-results = run_simulation(n_trials=20, seed=42)
-with open("simulation_results.json", "w") as output_file:
-    json.dump(compile_results(results), output_file, cls=NumpyEncoder, indent=2)
-PY
+# stages and tasks are dicts defined in your notebook
+results = run_simulation(stages, tasks, n_trials=25, seed=42)
+groups  = group_results(results)
+summary = [
+    summarise_group(stage, task, trials)
+    for (stage, task), trials in groups.items()
+]
 ```
 
 ### Animate the model
 
-Show an interactive animation:
+`animate_model.py` is a library — call it from a notebook or script and pass stages and task explicitly:
 
-```bash
-python3 animate_model.py
+```python
+from animate_model import animate
+
+# Show an interactive window
+anim = animate(task, stages, seed=42)
+
+# Save a GIF next to animate_model.py
+anim = animate(task, stages, save=True, seed=42)
 ```
 
-Save a GIF:
+### Notebooks
 
-```bash
-python3 animate_model.py --task rotate_insert --save --seed 42
-```
-
-The animation CLI supports these tasks: `rotate_insert`, `translate_only`, `rotate_only`, and `complex_manipulation`.
-
-### Hyperparameter sweep
-
-Single-parameter sweep:
-
-```bash
-python3 hyperparam_sweep.py --param gaze_switch_rate --values 0.1 0.3 0.5 0.7
-```
-
-Two-parameter sweep with heatmaps:
-
-```bash
-python3 hyperparam_sweep.py \
-    --param gaze_switch_rate --values 0.1 0.25 0.4 0.55 0.7 \
-    --param2 habit_strength --values2 0.1 0.3 0.5 0.7 0.9
-```
-
-Default 4-parameter grid:
-
-```bash
-python3 hyperparam_sweep.py --trials 15
-```
-
-Affordance matrix experiment:
-
-```bash
-python3 hyperparam_sweep.py \
-    --param affordance_matrix_variant --values baseline object_dominant relational_dominant diffuse \
-    --trials 20
-```
-
-### Affordance matrix notebook
-
-Open `affordance_matrix_experiments.ipynb` in Jupyter to compare the variants visually. The notebook:
-
-- displays each matrix as a heatmap,
-- runs all variants across the configured tasks,
-- displays a summary table,
-- plots success, efficiency, and timestep metrics,
-- plots example trajectories for `rotate_insert`.
-
-Sweep outputs are written next to `hyperparam_sweep.py`:
-
-- `sweep_results.csv`: one row per trial.
-- `sweep_summary.csv`: aggregated rows by parameter combination and task.
-- `sweep_plots.png`: metric plots for each swept parameter.
-- `sweep_heatmap.png`: generated only for 2-parameter sweeps.
-
-## Parameter Configurations
-
-Four default developmental profiles are defined in `DEVELOPMENTAL_STAGES`:
-
-| Config | Strategy | Habit | Horizon | WM | Gaze Switch |
-|--------|----------|-------|---------|----|-------------|
-| A | Strong translate-first habit | 78% | 1 | 2 | 0.12 |
-| B | Mostly sequential | 70% | 2 | 3 | 0.25 |
-| C | Mixed habit and goal-directed control | 40% | 4 | 4 | 0.40 |
-| D | Mostly goal-directed control | 10% | 6 | 5 | 0.55 |
-
-## Custom Sweep Params
-
-Any field of `DevelopmentalParams` can be swept:
-
-```bash
-python3 hyperparam_sweep.py --param correction_rate --values 0.05 0.1 0.15 0.2 0.25 0.3
-python3 hyperparam_sweep.py --param wm_decay --values 0.05 0.1 0.2 0.3 --param2 sampling_rate --values2 0.2 0.4 0.6 0.8
-```
+| Notebook | What it does |
+| -------- | ------------ |
+| `experiments.ipynb` | Defines 4 developmental stages and a 3 × 3 task grid (short/medium/long × 0°/45°/90°). Runs 25 trials per condition and produces success heatmaps, metric bar charts, and 2D trajectory plots. |
+| `parameter_sweep.ipynb` | Sweeps each of the 20 `DevelopmentalParams` fields in isolation against a fixed baseline and medium-difficulty task. Produces a sensitivity heatmap, per-group line plots, and an animated 6 × 3 trial comparison (`param_sweep_animation.html`). |
+| `affordance_matrix_experiments.ipynb` | Tests every affordance matrix variant across developmental stages. Produces matrix heatmaps, summary tables, outcome bar charts, and example trajectory plots. |
 
 ## Affordance Matrix Variants
 
-`affordance_matrix_variant` controls the structural mapping from working-memory features to action affordances before developmental coupling and trial noise are applied.
-
-Available variants:
+`affordance_matrix_variant` controls the structural mapping from working-memory features to action affordances, before developmental coupling and trial noise are applied.
 
 | Variant | Purpose |
-|---------|---------|
+| ------- | ------- |
 | `baseline` | Original mapping. Relational features strongly drive translate and rotate. |
 | `object_dominant` | Object-local pose and size drive action more strongly than relational gap features. |
 | `relational_dominant` | Object-target gap features dominate translate and rotate, testing a more comparison-based strategy. |
