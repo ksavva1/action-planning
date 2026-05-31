@@ -94,22 +94,86 @@ class CorrectionState:
     error_history: list[np.ndarray] = field(default_factory=list)
 
 
-def step_gaze(gaze: GazeState, params: DevelopmentalParams, rng: np.random.Generator) -> str:
+def step_gaze(
+    gaze: GazeState,
+    params: DevelopmentalParams,
+    wm: WorkingMemoryState,
+    movement_started: bool,
+    rng: np.random.Generator,
+) -> str:
     """
     Advance fixation by one timestep and return "object" or "target".
 
-    The dwell-time hazard makes switches unlikely immediately after a fixation
-    but increasingly likely as processing time accumulates.
+    The base switch probability (gaze_switch_rate × dwell-time hazard) is
+    dynamically modulated each timestep by four cognitive factors drawn from
+    the current working-memory state and developmental parameters:
+
+    1. **WM saturation** — when the trace for the currently fixated item is
+       already strong, there is little more to gain; the switch rate increases
+       proportionally (diminishing returns on continued fixation).
+
+    2. **Decay urgency** — when the unfixated item's trace has fallen below a
+       threshold, the need to refresh that representation boosts the rate of
+       switching back.
+
+    3. **Perceptual noise / acuity** — higher noise or lower mean acuity
+       stretches the effective fixation duration so that more dwell time is
+       needed before the hazard reaches its peak, slowing voluntary switching.
+
+    4. **Planning horizon** — a longer lookahead shifts the effective target
+       bias upward, making proactive target fixations more likely when the
+       agent does decide to switch.
+
+    5. **Pre-movement scanning** — before motor output begins, a high
+       initiation threshold combined with a low current WM strength creates an
+       information gap that inflates the scan rate; the boost decays to zero as
+       WM strength approaches the threshold.
     """
 
     gaze.dwell_time += 1
-    hazard = 1.0 - np.exp(-gaze.dwell_time / params.fixation_duration_mean)
 
-    if rng.random() < params.gaze_switch_rate * hazard:
+    # ── 1 & 2. WM-driven urgency ──────────────────────────────────────
+    if gaze.current_fixation == "object":
+        fixated_trace   = float(np.mean(wm.trace_strength[:5]))
+        unfixated_trace = float(np.mean(wm.trace_strength[5:8]))
+    else:
+        fixated_trace   = float(np.mean(wm.trace_strength[5:8]))
+        unfixated_trace = float(np.mean(wm.trace_strength[:5]))
+
+    # Saturation: diminishing return from staying on a well-sampled fixation
+    saturation_drive = fixated_trace                                  # [0, 1]
+    # Decay urgency: need to refresh the other item when its trace has faded
+    decay_urgency    = max(0.0, (0.5 - unfixated_trace) * 2.0)       # [0, 1]
+
+    wm_multiplier = 1.0 + 0.35 * saturation_drive + 0.45 * decay_urgency  # [1.0, 1.80]
+
+    # ── 3. Perceptual noise / acuity: stretch fixation duration ───────
+    acuity_mean      = (params.location_acuity + params.orientation_acuity) / 2.0
+    noise_load       = params.perceptual_noise * (1.0 - acuity_mean)
+    effective_duration = params.fixation_duration_mean * (1.0 + noise_load)
+
+    # ── 4. Planning horizon: boost target bias (proactive gaze) ───────
+    horizon_boost         = (params.planning_horizon / 6.0) * 0.20
+    effective_target_bias = min(0.95, params.target_bias + horizon_boost)
+
+    # ── 5. Pre-movement scanning: info-gap drives faster search ───────
+    if not movement_started:
+        mean_strength   = float(np.mean(wm.trace_strength))
+        info_gap        = max(0.0, params.initiation_threshold - mean_strength)
+        threshold_drive = info_gap / max(params.initiation_threshold, 1e-6)
+        scan_multiplier = 1.0 + threshold_drive * 0.50                # [1.0, 1.5]
+    else:
+        scan_multiplier = 1.0
+
+    # ── Combined switch decision ───────────────────────────────────────
+    hazard         = 1.0 - np.exp(-gaze.dwell_time / effective_duration)
+    effective_rate = params.gaze_switch_rate * wm_multiplier * scan_multiplier
+
+    if rng.random() < effective_rate * hazard:
         if gaze.current_fixation == "object":
             gaze.current_fixation = "target"
         else:
-            gaze.current_fixation = "object" if rng.random() < (1 - params.target_bias) else "target"
+            gaze.current_fixation = "object" if rng.random() < (1.0 - effective_target_bias) else "target"
         gaze.dwell_time = 0
         gaze.switch_count += 1
 
@@ -349,7 +413,7 @@ def run_trial(params: DevelopmentalParams, task: TaskConfig, seed: int = 42, tri
         position_error = np.sqrt((object_x - task.goal_x) ** 2 + (object_y - task.goal_y) ** 2)
         angle_error = abs(object_angle - task.goal_angle)
 
-        gaze_target = step_gaze(gaze, params, rng)
+        gaze_target = step_gaze(gaze, params, wm, movement_started, rng)
         if gaze_target == "object":
             last_object_fixation = current_time
         else:

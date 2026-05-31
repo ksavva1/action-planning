@@ -30,7 +30,7 @@ LOOK                    PROCESS                 ACT
                      feedback                  └──────────────┘
 ```
 
-**Gaze Controller** - switches fixation between object and target with a dwell-time hazard model. Parameters: `gaze_switch_rate`, `fixation_duration_mean`, `target_bias`.
+**Gaze Controller** - switches fixation between object and target with a dwell-time hazard model. The base rate (`gaze_switch_rate`) is dynamically modulated each timestep by four cognitive factors (see [Dynamic Gaze Coupling](#dynamic-gaze-coupling) below). Parameters: `gaze_switch_rate`, `fixation_duration_mean`, `target_bias`.
 
 **Perceptual Sampling** - samples object features (x, y, angle, width, height) when looking at the object, target features (goal x, y, angle) when looking at the target, and relational features (dx, dy, d_angle) when both representations are recently active.
 
@@ -59,6 +59,19 @@ LOOK                    PROCESS                 ACT
 | `output_docs/` | Generated documentation output. |
 | `requirements.txt` | Python dependencies. |
 
+## Dynamic Gaze Coupling
+
+`gaze_switch_rate` is a baseline rate, not a fixed probability. Each timestep `step_gaze` computes an **effective rate** by multiplying the baseline by two dynamic factors and an effective fixation duration derived from noise:
+
+| Factor | Parameters read | Direction |
+| ------ | --------------- | --------- |
+| **WM saturation** | `wm.trace_strength` (fixated slice) | High trace on current item → diminishing returns → switch sooner |
+| **Decay urgency** | `wm.trace_strength` (unfixated slice) | Trace on other item has fallen below 0.5 → urgency to refresh → switch sooner |
+| **Noise / acuity stretch** | `perceptual_noise`, `location_acuity`, `orientation_acuity` | Higher noise or lower acuity → longer effective `fixation_duration_mean` → hazard builds more slowly → longer dwell before switching |
+| **Planning horizon bias** | `planning_horizon` | Longer horizon adds up to +0.20 to `target_bias`, making proactive target fixations more likely when a switch does occur |
+| **Pre-movement scanning** | `initiation_threshold`, current mean WM strength | Before motor onset, info-gap = threshold − mean strength inflates switch rate by up to 1.5×; fades to zero as WM approaches threshold |
+
+The combined multiplier is `wm_multiplier × scan_multiplier` (range approximately 1.0 – 2.7); `gaze_switch_rate` therefore acts as a developmental floor rather than an absolute rate.
 
 ## Usage
 Stage presets and task definitions are the notebook's responsibility. Pass `DevelopmentalParams` and `TaskConfig` objects explicitly to every library function.
