@@ -15,10 +15,19 @@ from model_utils import (
 )
 
 __all__ = [
-    "DevelopmentalParams", "TaskConfig",
-    "TimestepRecord", "TrialResult", "GazeState", "WorkingMemoryState",
-    "AffordanceWeights", "MotorWeights", "HabitState", "CorrectionState",
-    "AFFORDANCE_MATRIX_VARIANTS", "run_trial", "angular_error",
+    "DevelopmentalParams",
+    "TaskConfig",
+    "TimestepRecord",
+    "TrialResult",
+    "GazeState",
+    "WorkingMemoryState",
+    "AffordanceWeights",
+    "MotorWeights",
+    "HabitState",
+    "CorrectionState",
+    "AFFORDANCE_MATRIX_VARIANTS",
+    "run_trial",
+    "angular_error",
 ]
 
 OBJECT_FEATURES = slice(0, 5)
@@ -26,23 +35,27 @@ TARGET_FEATURES = slice(5, 8)
 RELATION_FEATURES = slice(8, 11)
 FEATURE_COUNT = 11
 
-ACTION_BIAS = np.array([.15, .1, .05, .2])
+ACTION_BIAS = np.array([0.15, 0.1, 0.05, 0.2])
 # 4 affordances (reach, grasp, rotate, translate) to 3 motor dimensions (x, y, angle).
-MOTOR_BASE = np.array([
-    [.9, 0, 0],    # reach -> x
-    [0, .9, 0],    # grasp -> y
-    [0, 0, .9],    # rotate -> angle
-    [.5, .5, 0],   # translate -> x and y
-])
+MOTOR_BASE = np.array(
+    [
+        [0.9, 0, 0],  # reach -> x
+        [0, 0.9, 0],  # grasp -> y
+        [0, 0, 0.9],  # rotate -> angle
+        [0.5, 0.5, 0],  # translate -> x and y
+    ]
+)
 
 # Total path length below which a trial counts as having produced no movement.
 MOVEMENT_EPSILON = 1e-9
 
 # Minimum command magnitude counted as translation or rotation onset.
-ONSET_COMMAND_THRESHOLD = .1
+ONSET_COMMAND_THRESHOLD = 0.1
 
 
-def angular_error(angle: float, goal_angle: float, symmetry: int | None = None) -> float:
+def angular_error(
+    angle: float, goal_angle: float, symmetry: int | None = None
+) -> float:
     """
     Absolute angular distance from ``angle`` to ``goal_angle``.
 
@@ -94,6 +107,7 @@ class WorkingMemoryState:
 @dataclass
 class AffordanceWeights:
     """Per-trial percept-to-affordance weights with small random jitter."""
+
     weight_matrix: np.ndarray
     action_bias: np.ndarray
 
@@ -101,6 +115,7 @@ class AffordanceWeights:
 @dataclass
 class MotorWeights:
     """Per-trial affordance-to-motor weights with small random jitter."""
+
     weight_matrix: np.ndarray
 
 
@@ -114,6 +129,7 @@ class HabitState:
 @dataclass
 class CorrectionState:
     """Stores recent motor errors so feedback can be delayed."""
+
     error_history: list[np.ndarray] = field(default_factory=list)
 
 
@@ -226,7 +242,9 @@ def step_gaze(
         if gaze.current_fixation == "object":
             gaze.current_fixation = "target"
         else:
-            gaze.current_fixation = "object" if rng.random() < (1.0 - effective_target_bias) else "target"
+            gaze.current_fixation = (
+                "object" if rng.random() < (1.0 - effective_target_bias) else "target"
+            )
         gaze.dwell_time = 0
         gaze.switch_count += 1
 
@@ -278,13 +296,17 @@ def sample_percept(
     percept = np.zeros(FEATURE_COUNT)
     sampled = np.zeros(FEATURE_COUNT)
 
-    def sample_block(values: np.ndarray, acuity: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    def sample_block(
+        values: np.ndarray, acuity: np.ndarray
+    ) -> tuple[np.ndarray, np.ndarray]:
         mask = rng.random(len(values)) < params.sampling_rate
         noise = rng.normal(0, params.perceptual_noise, len(values)) * (1 - acuity)
         return (values + noise) * mask, mask.astype(float)
 
     if gaze_target == "object":
-        acuity = np.array([params.location_acuity] * 2 + [params.orientation_acuity] * 3)
+        acuity = np.array(
+            [params.location_acuity] * 2 + [params.orientation_acuity] * 3
+        )
         percept[OBJECT_FEATURES], sampled[OBJECT_FEATURES] = sample_block(
             object_state[OBJECT_FEATURES],
             acuity,
@@ -342,16 +364,18 @@ def update_wm(
     decay[RELATION_FEATURES] = params.wm_unfixated_decay
     wm.trace_strength *= 1 - decay
 
-    for index in np.flatnonzero(sampled > .5):
-        if wm.trace_strength[index] > .1:
-            wm.memory_buffer[index] = .4 * wm.memory_buffer[index] + .6 * percept[index]
+    for index in np.flatnonzero(sampled > 0.5):
+        if wm.trace_strength[index] > 0.1:
+            wm.memory_buffer[index] = (
+                0.4 * wm.memory_buffer[index] + 0.6 * percept[index]
+            )
         else:
             wm.memory_buffer[index] = percept[index]
-        wm.trace_strength[index] = min(1.0, wm.trace_strength[index] + .5)
+        wm.trace_strength[index] = min(1.0, wm.trace_strength[index] + 0.5)
 
-    if np.sum(wm.trace_strength > .1) > params.wm_capacity:
+    if np.sum(wm.trace_strength > 0.1) > params.wm_capacity:
         threshold = np.sort(wm.trace_strength)[::-1][params.wm_capacity]
-        wm.trace_strength[wm.trace_strength < threshold] *= .3
+        wm.trace_strength[wm.trace_strength < threshold] *= 0.3
 
     return wm.memory_buffer * wm.trace_strength
 
@@ -375,9 +399,11 @@ def estimate_affordances(
         translate.
     """
 
-    activations = np.dot(working_memory, weights.weight_matrix) + weights.action_bias * .1
+    activations = (
+        np.dot(working_memory, weights.weight_matrix) + weights.action_bias * 0.1
+    )
     activations += rng.normal(0, params.affordance_noise, 4)
-    return 1 / (1 + np.exp(-5 * (activations - .3)))
+    return 1 / (1 + np.exp(-5 * (activations - 0.3)))
 
 
 def plan_motor_command(
@@ -412,13 +438,15 @@ def plan_motor_command(
     planning_weight = min(1.0, params.planning_horizon / 6.0)
     command = (
         (1 - planning_weight) * affordance_command
-        + planning_weight * goal_error * .3
+        + planning_weight * goal_error * 0.3
         + rng.normal(0, params.motor_noise, 3)
     )
-    return np.clip(command * min(1.0, np.sqrt(np.sum(goal_error ** 2)) / .5), -1, 1)
+    return np.clip(command * min(1.0, np.sqrt(np.sum(goal_error**2)) / 0.5), -1, 1)
 
 
-def blend_habit(habit: HabitState, params: DevelopmentalParams, command: np.ndarray) -> np.ndarray:
+def blend_habit(
+    habit: HabitState, params: DevelopmentalParams, command: np.ndarray
+) -> np.ndarray:
     """Blend a translate-first habit with the goal-directed command.
 
     Early in a trial the habit pushes the object laterally before rotation, but later
@@ -436,7 +464,11 @@ def blend_habit(habit: HabitState, params: DevelopmentalParams, command: np.ndar
 
     habit.step_count += 1
     phase_length = int(4 + 12 * params.habit_strength)
-    habitual = np.array([0.7, 0.7, 0.0]) if habit.step_count < phase_length else np.array([0.0, 0.0, 0.8])
+    habitual = (
+        np.array([0.7, 0.7, 0.0])
+        if habit.step_count < phase_length
+        else np.array([0.0, 0.0, 0.8])
+    )
     fade = max(0.0, 1.0 - habit.step_count / (phase_length * 3))
     habit_weight = params.habit_strength * fade
     goal_weight = params.goal_directed_strength + params.habit_strength * (1 - fade)
@@ -454,8 +486,8 @@ def apply_correction(
 ) -> np.ndarray:
     """Apply delayed online correction from recent motor error.
 
-    Less mature profiles keep acting on older error estimates, 
-    while mature profiles can correct more immediately during 
+    Less mature profiles keep acting on older error estimates,
+    while mature profiles can correct more immediately during
     the movement.
 
     Args:
@@ -476,9 +508,13 @@ def apply_correction(
     if current_time < params.correction_delay:
         return np.zeros(3)
 
-    delayed_error = correction.error_history[len(correction.error_history) - 1 - params.correction_delay]
-    command = params.correction_rate * delayed_error + rng.normal(0, params.motor_noise * .5, 3)
-    return command * min(1.0, np.sqrt(np.sum(current_error ** 2)) / .4)
+    delayed_error = correction.error_history[
+        len(correction.error_history) - 1 - params.correction_delay
+    ]
+    command = params.correction_rate * delayed_error + rng.normal(
+        0, params.motor_noise * 0.5, 3
+    )
+    return command * min(1.0, np.sqrt(np.sum(current_error**2)) / 0.4)
 
 
 def compute_near_goal_command(
@@ -504,9 +540,9 @@ def compute_near_goal_command(
         task.goal_y - object_y,
         task.goal_angle - object_angle,
     )
-    distance = np.sqrt(np.sum(goal_error ** 2))
-    if distance < .6:
-        closeness = 1.0 - min(distance / .6, 1.0)
+    distance = np.sqrt(np.sum(goal_error**2))
+    if distance < 0.6:
+        closeness = 1.0 - min(distance / 0.6, 1.0)
         command = command * (1 - closeness) + goal_error * 2.0 * closeness
     return np.clip(command * min(1.0, distance * 2.5), -1, 1)
 
@@ -529,7 +565,7 @@ def _path_lengths(trajectory: list[TimestepRecord]) -> tuple[float, float, float
         da = current.obj_angle - previous.obj_angle
         translational += math.hypot(dx, dy)
         rotational += abs(da)
-        combined += math.sqrt(dx ** 2 + dy ** 2 + da ** 2)
+        combined += math.sqrt(dx**2 + dy**2 + da**2)
     return translational, rotational, combined
 
 
@@ -625,7 +661,9 @@ def run_trial(
 
     for current_time in range(task.max_timesteps):
         position_error = _position_error(object_x, object_y, task)
-        angle_error = angular_error(object_angle, task.goal_angle, task.angular_symmetry)
+        angle_error = angular_error(
+            object_angle, task.goal_angle, task.angular_symmetry
+        )
 
         gaze_target = step_gaze(gaze, params, wm, movement_started, current_time, rng)
         if gaze_target == "object":
@@ -633,13 +671,20 @@ def run_trial(
         else:
             last_target_fixation = current_time
 
-        object_state = np.array([object_x, object_y, object_angle, task.obj_width, task.obj_height])
+        object_state = np.array(
+            [object_x, object_y, object_angle, task.obj_width, task.obj_height]
+        )
         both_recently_fixated = (
             current_time - last_object_fixation <= 3
             and current_time - last_target_fixation <= 3
         )
         percept, sampled = sample_percept(
-            params, object_state, target_state, gaze_target, both_recently_fixated, rng,
+            params,
+            object_state,
+            target_state,
+            gaze_target,
+            both_recently_fixated,
+            rng,
         )
 
         working_memory = update_wm(wm, params, percept, sampled, gaze_target)
@@ -652,7 +697,9 @@ def run_trial(
             movement_started = True
             movement_onset = current_time
 
-        affordances = estimate_affordances(affordance_weights, params, working_memory, rng)
+        affordances = estimate_affordances(
+            affordance_weights, params, working_memory, rng
+        )
         current_motor_state = _pose_vector(object_x, object_y, object_angle)
         planned_command = plan_motor_command(
             motor_weights,
@@ -663,16 +710,19 @@ def run_trial(
             rng,
         )
         command = blend_habit(habit, params, planned_command)
-        command += apply_correction(correction, params, current_motor_state, goal_motor_state, current_time, rng)
+        command += apply_correction(
+            correction, params, current_motor_state, goal_motor_state, current_time, rng
+        )
 
         final_command = (
             compute_near_goal_command(command, object_x, object_y, object_angle, task)
-            if movement_started else np.zeros(3)
+            if movement_started
+            else np.zeros(3)
         )
 
-        object_x += final_command[0] * .10
-        object_y += final_command[1] * .10
-        object_angle += final_command[2] * .10
+        object_x += final_command[0] * 0.10
+        object_y += final_command[1] * 0.10
+        object_angle += final_command[2] * 0.10
 
         rotation_started = abs(final_command[2]) > ONSET_COMMAND_THRESHOLD
         translation_started = (
@@ -701,20 +751,27 @@ def run_trial(
             )
         )
 
-        if position_error < task.position_tolerance and angle_error < task.angle_tolerance:
+        if (
+            position_error < task.position_tolerance
+            and angle_error < task.angle_tolerance
+        ):
             break
 
     final_position_error = float(_position_error(object_x, object_y, task))
-    final_angle_error = angular_error(object_angle, task.goal_angle, task.angular_symmetry)
+    final_angle_error = angular_error(
+        object_angle, task.goal_angle, task.angular_symmetry
+    )
     total_fixations = len(gaze.fixation_history)
     success = bool(
         final_position_error < task.position_tolerance
         and final_angle_error < task.angle_tolerance
     )
 
-    optimal_translation = math.hypot(task.goal_x - task.start_x, task.goal_y - task.start_y)
+    optimal_translation = math.hypot(
+        task.goal_x - task.start_x, task.goal_y - task.start_y
+    )
     optimal_rotation = abs(task.goal_angle - task.start_angle)
-    optimal_combined = math.sqrt(optimal_translation ** 2 + optimal_rotation ** 2)
+    optimal_combined = math.sqrt(optimal_translation**2 + optimal_rotation**2)
     actual_translation, actual_rotation, actual_combined = _path_lengths(trajectory)
 
     return TrialResult(
@@ -739,7 +796,8 @@ def run_trial(
         target_fixation_pct=gaze.target_fixation_count / max(total_fixations, 1),
         pre_movement_target_fixation_pct=(
             gaze.pre_movement_target_count / gaze.pre_movement_steps
-            if gaze.pre_movement_steps > 0 else None
+            if gaze.pre_movement_steps > 0
+            else None
         ),
         time_to_first_target_fixation=gaze.first_target_fixation,
         gaze_history=gaze.fixation_history,

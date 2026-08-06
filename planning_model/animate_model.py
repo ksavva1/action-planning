@@ -36,7 +36,11 @@ def build_panel_label(params: DevelopmentalParams) -> str:
         Two-line string of formatted parameter values.
     """
 
-    habit = int(100 * params.habit_strength / (params.habit_strength + params.goal_directed_strength))
+    habit = int(
+        100
+        * params.habit_strength
+        / (params.habit_strength + params.goal_directed_strength)
+    )
     return (
         f"samp={params.sampling_rate:.2f}  noise={params.perceptual_noise:.2f}  "
         f"gaze_sw={params.gaze_switch_rate:.2f}\n"
@@ -63,7 +67,9 @@ def draw_rotated_rectangle(ax, x, y, width, height, angle, colour, **kwargs):
     """
 
     rect = patches.FancyBboxPatch(
-        (-width / 2, -height / 2), width, height,
+        (-width / 2, -height / 2),
+        width,
+        height,
         boxstyle="round,pad=0.012",
         facecolor=kwargs.get("fc", colour),
         edgecolor=colour,
@@ -72,7 +78,9 @@ def draw_rotated_rectangle(ax, x, y, width, height, angle, colour, **kwargs):
         alpha=kwargs.get("alpha", 1),
         zorder=kwargs.get("z", 3),
     )
-    rect.set_transform(transforms.Affine2D().rotate(angle).translate(x, y) + ax.transData)
+    rect.set_transform(
+        transforms.Affine2D().rotate(angle).translate(x, y) + ax.transData
+    )
     ax.add_patch(rect)
     return rect
 
@@ -91,27 +99,39 @@ def setup_figure(task: TaskConfig, stages: dict):
     stage_names = list(stages)
     n = len(stage_names)
     fig, axes = plt.subplots(1, n, figsize=(5 * n, 6.5), facecolor=BACKGROUND_COLOUR)
-    fig.subplots_adjust(left=.03, right=.98, top=.82, bottom=.04, wspace=.15)
+    fig.subplots_adjust(left=0.03, right=0.98, top=0.82, bottom=0.04, wspace=0.15)
     fig.text(
-        .5, .97, "Planning Model Simulation",
-        ha="center", va="top", fontsize=16, fontweight="bold",
-        color=ACCENT_COLOUR, fontfamily="serif",
-        path_effects=[patheffects.withStroke(linewidth=2, foreground=BACKGROUND_COLOUR)],
+        0.5,
+        0.97,
+        "Planning Model Simulation",
+        ha="center",
+        va="top",
+        fontsize=16,
+        fontweight="bold",
+        color=ACCENT_COLOUR,
+        fontfamily="serif",
+        path_effects=[
+            patheffects.withStroke(linewidth=2, foreground=BACKGROUND_COLOUR)
+        ],
     )
     fig.text(
-        .5, .935,
+        0.5,
+        0.935,
         f"Task: {task.name.replace('_', ' ').title()}  |  "
         f"Goal ({task.goal_x},{task.goal_y}) angle={np.degrees(task.goal_angle):.0f}°",
-        ha="center", va="top", fontsize=9, color=DIM_COLOUR,
+        ha="center",
+        va="top",
+        fontsize=9,
+        color=DIM_COLOUR,
     )
-    timestep_text = fig.text(.5, .905, "", ha="center", fontsize=9, color=DIM_COLOUR)
+    timestep_text = fig.text(0.5, 0.905, "", ha="center", fontsize=9, color=DIM_COLOUR)
     trails, status_texts = {}, {}
 
     axes = np.atleast_1d(axes)
     for ax, (name, params) in zip(axes, stages.items()):
         ax.set_facecolor(SURFACE_COLOUR)
-        ax.set_xlim(-.7, 1.1)
-        ax.set_ylim(-.6, 1.25)
+        ax.set_xlim(-0.7, 1.1)
+        ax.set_ylim(-0.6, 1.25)
         ax.set_aspect("equal")
         ax.tick_params(colors=DIM_COLOUR, labelsize=5)
         for spine in ax.spines.values():
@@ -120,19 +140,47 @@ def setup_figure(task: TaskConfig, stages: dict):
         colour = STAGE_COLOURS.get(name, "#aaaaaa")
         ax.set_title(
             build_panel_label(params),
-            fontsize=6.2, fontfamily="monospace", color=colour,
-            pad=5, linespacing=1.3,
+            fontsize=6.2,
+            fontfamily="monospace",
+            color=colour,
+            pad=5,
+            linespacing=1.3,
         )
         draw_rotated_rectangle(
-            ax, task.goal_x, task.goal_y, task.obj_width + .05, task.obj_height + .05,
-            task.goal_angle, GOAL_COLOUR, fc="none", lw=1.8, ls="--", alpha=.5, z=1,
+            ax,
+            task.goal_x,
+            task.goal_y,
+            task.obj_width + 0.05,
+            task.obj_height + 0.05,
+            task.goal_angle,
+            GOAL_COLOUR,
+            fc="none",
+            lw=1.8,
+            ls="--",
+            alpha=0.5,
+            z=1,
         )
-        ax.text(task.goal_x, task.goal_y + task.obj_height / 2 + .08, "target",
-                fontsize=6, ha="center", color=f"{GOAL_COLOUR}88", zorder=1)
-        trails[name], = ax.plot([], [], color=colour, alpha=.4, lw=1.2, zorder=2)
+        ax.text(
+            task.goal_x,
+            task.goal_y + task.obj_height / 2 + 0.08,
+            "target",
+            fontsize=6,
+            ha="center",
+            color=f"{GOAL_COLOUR}88",
+            zorder=1,
+        )
+        (trails[name],) = ax.plot([], [], color=colour, alpha=0.4, lw=1.2, zorder=2)
         status_texts[name] = ax.text(
-            .97, .03, "", transform=ax.transAxes, fontsize=7.5, ha="right",
-            va="bottom", fontfamily="monospace", color=TEXT_COLOUR, zorder=15,
+            0.97,
+            0.03,
+            "",
+            transform=ax.transAxes,
+            fontsize=7.5,
+            ha="right",
+            va="bottom",
+            fontfamily="monospace",
+            color=TEXT_COLOUR,
+            zorder=15,
         )
 
     return fig, axes, trails, status_texts, timestep_text
@@ -183,14 +231,22 @@ def draw_frame_for_stage(ax, name, trial, frame, task, trails, status_texts) -> 
     remove_dynamic_artists(ax)
 
     trails[name].set_data(
-        [item.obj_x for item in trajectory[:index + 1]],
-        [item.obj_y for item in trajectory[:index + 1]],
+        [item.obj_x for item in trajectory[: index + 1]],
+        [item.obj_y for item in trajectory[: index + 1]],
     )
     colour = STAGE_COLOURS.get(name, "#aaaaaa")
-    mark_dynamic(draw_rotated_rectangle(
-        ax, step.obj_x, step.obj_y, task.obj_width, task.obj_height,
-        step.obj_angle, colour, alpha=.88,
-    ))
+    mark_dynamic(
+        draw_rotated_rectangle(
+            ax,
+            step.obj_x,
+            step.obj_y,
+            task.obj_width,
+            task.obj_height,
+            step.obj_angle,
+            colour,
+            alpha=0.88,
+        )
+    )
 
     looking_at_object = step.gaze_target == "object"
     gaze_colour = GAZE_COLOUR_OBJECT if looking_at_object else GAZE_COLOUR_TARGET
@@ -198,28 +254,68 @@ def draw_frame_for_stage(ax, name, trial, frame, task, trails, status_texts) -> 
     fixation_y = step.obj_y if looking_at_object else task.goal_y
 
     for circle in (
-        plt.Circle((EYE_X, EYE_Y), .035, fc=gaze_colour, ec="none", alpha=.85, zorder=10),
-        plt.Circle((EYE_X, EYE_Y), .015, fc=BACKGROUND_COLOUR, ec="none", alpha=.9, zorder=11),
-        plt.Circle((fixation_x, fixation_y), .025, fc=gaze_colour, ec="white", lw=.4, alpha=.7, zorder=8),
+        plt.Circle(
+            (EYE_X, EYE_Y), 0.035, fc=gaze_colour, ec="none", alpha=0.85, zorder=10
+        ),
+        plt.Circle(
+            (EYE_X, EYE_Y), 0.015, fc=BACKGROUND_COLOUR, ec="none", alpha=0.9, zorder=11
+        ),
+        plt.Circle(
+            (fixation_x, fixation_y),
+            0.025,
+            fc=gaze_colour,
+            ec="white",
+            lw=0.4,
+            alpha=0.7,
+            zorder=8,
+        ),
     ):
         ax.add_patch(mark_dynamic(circle))
 
-    gaze_line, = ax.plot([EYE_X, fixation_x], [EYE_Y, fixation_y], color=gaze_colour, lw=1, alpha=.45, zorder=5)
+    (gaze_line,) = ax.plot(
+        [EYE_X, fixation_x],
+        [EYE_Y, fixation_y],
+        color=gaze_colour,
+        lw=1,
+        alpha=0.45,
+        zorder=5,
+    )
     mark_dynamic(gaze_line)
-    mark_dynamic(ax.text(
-        EYE_X + .08, EYE_Y, "obj" if looking_at_object else "tgt",
-        fontsize=5.5, color=gaze_colour, va="center", fontfamily="monospace", alpha=.8, zorder=12,
-    ))
+    mark_dynamic(
+        ax.text(
+            EYE_X + 0.08,
+            EYE_Y,
+            "obj" if looking_at_object else "tgt",
+            fontsize=5.5,
+            color=gaze_colour,
+            va="center",
+            fontfamily="monospace",
+            alpha=0.8,
+            zorder=12,
+        )
+    )
 
     if frame >= len(trajectory):
         status_texts[name].set_text("SUCCESS" if trial.success else "MISSED")
         status_texts[name].set_color(ACCENT_COLOUR if trial.success else "#fb7185")
     else:
-        status_texts[name].set_text(f"pos={step.pos_error:.2f} ang={step.angle_error:.2f}")
+        status_texts[name].set_text(
+            f"pos={step.pos_error:.2f} ang={step.angle_error:.2f}"
+        )
         status_texts[name].set_color(DIM_COLOUR)
 
 
-def update_animation_frame(frame, axes, results, task, trails, status_texts, timestep_text, max_length, stage_names):
+def update_animation_frame(
+    frame,
+    axes,
+    results,
+    task,
+    trails,
+    status_texts,
+    timestep_text,
+    max_length,
+    stage_names,
+):
     """Draw one animation frame across all stage panels.
 
     Args:
@@ -263,7 +359,9 @@ def animate(
     """
 
     stage_names = list(stages)
-    results = {name: run_trial(params, task, seed=seed) for name, params in stages.items()}
+    results = {
+        name: run_trial(params, task, seed=seed) for name, params in stages.items()
+    }
     max_length = max(len(trial.trajectory) for trial in results.values())
     fig, axes, trails, status_texts, timestep_text = setup_figure(task, stages)
 
@@ -271,7 +369,16 @@ def animate(
         fig,
         update_animation_frame,
         frames=max_length + 6,
-        fargs=(axes, results, task, trails, status_texts, timestep_text, max_length, stage_names),
+        fargs=(
+            axes,
+            results,
+            task,
+            trails,
+            status_texts,
+            timestep_text,
+            max_length,
+            stage_names,
+        ),
         interval=200,
         blit=False,
         repeat=True,
@@ -279,7 +386,12 @@ def animate(
     if save:
         output_path = Path(__file__).with_name(f"planning_cascade_{task.name}.gif")
         print(f"Saving -> {output_path}")
-        animation.save(output_path, writer="pillow", fps=5, savefig_kwargs={"facecolor": BACKGROUND_COLOUR})
+        animation.save(
+            output_path,
+            writer="pillow",
+            fps=5,
+            savefig_kwargs={"facecolor": BACKGROUND_COLOUR},
+        )
         print(f"Done: {output_path}")
     else:
         plt.show()

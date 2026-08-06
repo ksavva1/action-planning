@@ -45,7 +45,9 @@ def make_rng(
     if policy == "common":
         return np.random.default_rng(base_seed + trial_index)
     if policy == "independent":
-        sequence = np.random.SeedSequence([int(base_seed), condition_key(condition), int(trial_index)])
+        sequence = np.random.SeedSequence(
+            [int(base_seed), condition_key(condition), int(trial_index)]
+        )
         return np.random.default_rng(sequence)
     raise ValueError(f"unknown seed policy {policy!r}; expected one of {SEED_POLICIES}")
 
@@ -375,7 +377,9 @@ def run_simulation(
     return results
 
 
-def group_results(results: list[TrialResult]) -> dict[tuple[str, str], list[TrialResult]]:
+def group_results(
+    results: list[TrialResult],
+) -> dict[tuple[str, str], list[TrialResult]]:
     """Group a flat list of TrialResult objects by (params_name, task_name).
 
     Args:
@@ -452,17 +456,25 @@ def summarise_group(stage: str, task: str, trials: list[TrialResult]) -> dict:
         "success_ci_low": low,
         "success_ci_high": high,
         "timeout_rate": float(np.mean([trial.timed_out for trial in trials])),
-        "no_onset_rate": float(np.mean([not trial.movement_initiated for trial in trials])),
+        "no_onset_rate": float(
+            np.mean([not trial.movement_initiated for trial in trials])
+        ),
     }
 
     censored_metrics = {
         "efficiency": [trial.efficiency for trial in trials],
-        "translational_efficiency": [trial.translational_efficiency for trial in trials],
+        "translational_efficiency": [
+            trial.translational_efficiency for trial in trials
+        ],
         "rotational_efficiency": [trial.rotational_efficiency for trial in trials],
         "movement_onset": [trial.movement_onset for trial in trials],
         "time_to_success": [trial.time_to_success for trial in trials],
-        "pre_movement_target_fixation": [trial.pre_movement_target_fixation_pct for trial in trials],
-        "time_to_first_target_fixation": [trial.time_to_first_target_fixation for trial in trials],
+        "pre_movement_target_fixation": [
+            trial.pre_movement_target_fixation_pct for trial in trials
+        ],
+        "time_to_first_target_fixation": [
+            trial.time_to_first_target_fixation for trial in trials
+        ],
     }
     complete_metrics = {
         "timesteps": [trial.timesteps_used for trial in trials],
@@ -482,7 +494,8 @@ def summarise_group(stage: str, task: str, trials: list[TrialResult]) -> dict:
             summary[f"censored_{key}"] = censored
 
     tbr_defined = [
-        value for value in (trial.translate_before_rotate for trial in trials)
+        value
+        for value in (trial.translate_before_rotate for trial in trials)
         if value is not None
     ]
     summary["translate_before_rotate_rate"] = (
@@ -536,14 +549,30 @@ def dev_params_as_dict(stages: dict) -> dict:
     """
 
     keys = [
-        "gaze_switch_rate", "fixation_duration_mean", "target_bias", "simultaneous_rate",
-        "sampling_rate", "perceptual_noise", "location_acuity", "orientation_acuity",
-        "relation_acuity", "wm_capacity", "wm_decay", "wm_unfixated_decay",
-        "affordance_matrix_variant", "affordance_coupling", "planning_horizon",
-        "habit_strength", "goal_directed_strength", "correction_rate",
+        "gaze_switch_rate",
+        "fixation_duration_mean",
+        "target_bias",
+        "simultaneous_rate",
+        "sampling_rate",
+        "perceptual_noise",
+        "location_acuity",
+        "orientation_acuity",
+        "relation_acuity",
+        "wm_capacity",
+        "wm_decay",
+        "wm_unfixated_decay",
+        "affordance_matrix_variant",
+        "affordance_coupling",
+        "planning_horizon",
+        "habit_strength",
+        "goal_directed_strength",
+        "correction_rate",
         "initiation_threshold",
     ]
-    return {name: {key: getattr(params, key) for key in keys} for name, params in stages.items()}
+    return {
+        name: {key: getattr(params, key) for key in keys}
+        for name, params in stages.items()
+    }
 
 
 def compile_results(results, stages: dict) -> dict:

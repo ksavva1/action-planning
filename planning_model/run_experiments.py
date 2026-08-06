@@ -100,7 +100,8 @@ def run_condition(params, task, label, seed_sets, trials_per_set, keep_trials=Fa
     pooled = flatten_batches(batches)
     summary = summarise_group(label, task.name, pooled)
     per_batch = {
-        str(seed): summarise_group(label, task.name, batch) for seed, batch in batches.items()
+        str(seed): summarise_group(label, task.name, batch)
+        for seed, batch in batches.items()
     }
     add_batch_stats(summary, per_batch, seed_sets)
     return summary, per_batch, pooled if keep_trials else None
@@ -191,7 +192,9 @@ def experiment_1(seed_sets, trials_per_set, log):
     summaries, per_batch_all, curves = [], {}, {}
     cell_flags = {name: {} for name in DEVELOPMENTAL_PROFILES}
     profile_trials = {name: [] for name in DEVELOPMENTAL_PROFILES}
-    profile_batches = {name: {seed: [] for seed in seed_sets} for name in DEVELOPMENTAL_PROFILES}
+    profile_batches = {
+        name: {seed: [] for seed in seed_sets} for name in DEVELOPMENTAL_PROFILES
+    }
     failure_records = {name: [] for name in DEVELOPMENTAL_PROFILES}
 
     for profile_name, params in DEVELOPMENTAL_PROFILES.items():
@@ -209,7 +212,9 @@ def experiment_1(seed_sets, trials_per_set, log):
             summaries.append(summary)
             per_batch_all[label] = per_batch
 
-            cell_flags[profile_name][task_name] = [bool(trial.success) for trial in pooled]
+            cell_flags[profile_name][task_name] = [
+                bool(trial.success) for trial in pooled
+            ]
             failure_records[profile_name].extend(collect_failure_records(pooled))
             for base_seed in seed_sets:
                 profile_batches[profile_name][base_seed].extend(
@@ -222,21 +227,30 @@ def experiment_1(seed_sets, trials_per_set, log):
     # every cell, so the curve shows what would have been concluded had the
     # battery been run at that resolution.
     total_per_cell = len(seed_sets) * trials_per_set
-    grid = sorted({k for k in (5, 10, 20, 25, 30, 40, 50, 75, 100, 125, 150) if k <= total_per_cell}
-                  | {total_per_cell})
+    grid = sorted(
+        {
+            k
+            for k in (5, 10, 20, 25, 30, 40, 50, 75, 100, 125, 150)
+            if k <= total_per_cell
+        }
+        | {total_per_cell}
+    )
     for profile_name, tasks in cell_flags.items():
         curve = []
         for k in grid:
             flags = [flag for cell in tasks.values() for flag in cell[:k]]
             successes = int(sum(flags))
             low, high = analysis.wilson_interval(successes, len(flags))
-            curve.append({
-                "n": k,
-                "n_total": len(flags),
-                "estimate": successes / len(flags),
-                "ci_low": low, "ci_high": high,
-                "half_width": (high - low) / 2,
-            })
+            curve.append(
+                {
+                    "n": k,
+                    "n_total": len(flags),
+                    "estimate": successes / len(flags),
+                    "ci_low": low,
+                    "ci_high": high,
+                    "half_width": (high - low) / 2,
+                }
+            )
         curves[f"profile_{profile_name}"] = curve
 
     interior = sorted(
@@ -267,7 +281,10 @@ def experiment_1(seed_sets, trials_per_set, log):
         factor: analysis.marginal_by_factor(summaries, TASK_META, factor)
         for factor in ("dist", "rot", "aspect")
     }
-    contrasts = {factor: analysis.demand_contrasts(values) for factor, values in marginals.items()}
+    contrasts = {
+        factor: analysis.demand_contrasts(values)
+        for factor, values in marginals.items()
+    }
 
     return {
         "cell_summaries": summaries,
@@ -300,7 +317,9 @@ def experiment_1_design_robustness(seed_sets, trials_per_set, log):
     designs = {}
 
     for name, (position_tolerance, angle_tolerance) in TOLERANCE_VARIANTS.items():
-        tasks, _ = build_battery(position_tolerance=position_tolerance, angle_tolerance=angle_tolerance)
+        tasks, _ = build_battery(
+            position_tolerance=position_tolerance, angle_tolerance=angle_tolerance
+        )
         designs[f"tolerance_{name}"] = tasks
     for name, (intercept, slope) in STEP_LIMIT_VARIANTS.items():
         if name == "default":
@@ -319,7 +338,9 @@ def experiment_1_design_robustness(seed_sets, trials_per_set, log):
                 label = f"{design_name}|{profile_name}|{task_name}"
                 batches = run_batches(params, task, label, seed_sets, trials_per_set)
                 pooled.extend(flatten_batches(batches))
-            per_profile[profile_name] = summarise_group(profile_name, design_name, pooled)
+            per_profile[profile_name] = summarise_group(
+                profile_name, design_name, pooled
+            )
         output[design_name] = per_profile
         log(f"  {design_name} done")
 
@@ -329,12 +350,18 @@ def experiment_1_design_robustness(seed_sets, trials_per_set, log):
             {k: v for k, v in output.items() if k.startswith("tolerance_")}
         ),
         "steplimit_comparison": analysis.compare_designs(
-            {k: v for k, v in output.items()
-             if k.startswith("steplimit_") or k == "tolerance_default"}
+            {
+                k: v
+                for k, v in output.items()
+                if k.startswith("steplimit_") or k == "tolerance_default"
+            }
         ),
         "symmetry_comparison": analysis.compare_designs(
-            {k: v for k, v in output.items()
-             if k in ("tolerance_default", "symmetry_rectangle")}
+            {
+                k: v
+                for k, v in output.items()
+                if k in ("tolerance_default", "symmetry_rectangle")
+            }
         ),
     }
 
@@ -362,9 +389,13 @@ def run_sweep(baseline, task, config, seed_sets, trials_per_set, label_prefix):
             overrides = {parameter: value}
             if parameter == "habit_strength":
                 overrides["goal_directed_strength"] = round(1.0 - value, 4)
-            params = replace(baseline, name=f"{baseline.name}_{parameter}_{value}", **overrides)
+            params = replace(
+                baseline, name=f"{baseline.name}_{parameter}_{value}", **overrides
+            )
             label = f"{label_prefix}|{parameter}|{value}"
-            summary, _, _ = run_condition(params, task, label, seed_sets, trials_per_set)
+            summary, _, _ = run_condition(
+                params, task, label, seed_sets, trials_per_set
+            )
             summaries[parameter][value] = summary
     return summaries
 
@@ -385,8 +416,12 @@ def experiment_2(seed_sets, trials_per_set, extended_trials, log):
 
     log("Experiment 2: primary sweep")
     primary = run_sweep(
-        SWEEP_BASELINES[PRIMARY_BASELINE], SWEEP_TASKS[PRIMARY_SWEEP_TASK], SWEEP_CONFIG,
-        seed_sets, trials_per_set, f"{PRIMARY_BASELINE}|{PRIMARY_SWEEP_TASK}",
+        SWEEP_BASELINES[PRIMARY_BASELINE],
+        SWEEP_TASKS[PRIMARY_SWEEP_TASK],
+        SWEEP_CONFIG,
+        seed_sets,
+        trials_per_set,
+        f"{PRIMARY_BASELINE}|{PRIMARY_SWEEP_TASK}",
     )
     primary_index = analysis.relative_sensitivity_index(primary)
 
@@ -397,7 +432,12 @@ def experiment_2(seed_sets, trials_per_set, extended_trials, log):
         for task_name, task in SWEEP_TASKS.items():
             key = f"{baseline_name}|{task_name}"
             summaries = run_sweep(
-                baseline, task, coarse, seed_sets[:2], extended_trials, key,
+                baseline,
+                task,
+                coarse,
+                seed_sets[:2],
+                extended_trials,
+                key,
             )
             index = analysis.relative_sensitivity_index(summaries)
             grid[key] = {
@@ -451,11 +491,15 @@ def experiment_3(seed_sets, trials_per_set, log):
                     affordance_matrix_variant=variant,
                 )
                 label = f"{profile_name}|{task_name}|{variant}"
-                summary, _, _ = run_condition(params, task, label, seed_sets, trials_per_set)
+                summary, _, _ = run_condition(
+                    params, task, label, seed_sets, trials_per_set
+                )
                 summary["stage"] = profile_name
                 summary["task"] = task_name
                 summary["variant"] = variant
-                cells.setdefault(profile_name, {}).setdefault(task_name, {})[variant] = summary
+                cells.setdefault(profile_name, {}).setdefault(task_name, {})[
+                    variant
+                ] = summary
                 summaries_flat.append(summary)
         log(f"  profile {profile_name} done")
 
@@ -464,16 +508,17 @@ def experiment_3(seed_sets, trials_per_set, log):
     )
     contrasts = {
         profile: {
-            task: analysis.matrix_contrast(variants)
-            for task, variants in tasks.items()
+            task: analysis.matrix_contrast(variants) for task, variants in tasks.items()
         }
         for profile, tasks in cells.items()
     }
     ordering_preserved = {}
     for task_name in MATRIX_TASKS:
         for variant in AFFORDANCE_MATRIX_VARIANTS:
-            rates = [cells[profile][task_name][variant]["success_rate"]
-                     for profile in DEVELOPMENTAL_PROFILES]
+            rates = [
+                cells[profile][task_name][variant]["success_rate"]
+                for profile in DEVELOPMENTAL_PROFILES
+            ]
             ordering_preserved[f"{task_name}|{variant}"] = bool(
                 all(earlier <= later for earlier, later in zip(rates, rates[1:]))
             )
@@ -536,10 +581,14 @@ def main():
     if everything or "exp1" in wanted:
         dump("experiment_1", experiment_1(seed_sets, battery_trials, log))
     if everything or "robust" in wanted:
-        dump("experiment_1_robustness",
-             experiment_1_design_robustness(seed_sets[:2], robustness_trials, log))
+        dump(
+            "experiment_1_robustness",
+            experiment_1_design_robustness(seed_sets[:2], robustness_trials, log),
+        )
     if everything or "exp2" in wanted:
-        dump("experiment_2", experiment_2(seed_sets, sweep_trials, extended_trials, log))
+        dump(
+            "experiment_2", experiment_2(seed_sets, sweep_trials, extended_trials, log)
+        )
     if everything or "exp3" in wanted:
         dump("experiment_3", experiment_3(seed_sets, matrix_trials, log))
 

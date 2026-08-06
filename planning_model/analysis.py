@@ -1,5 +1,4 @@
-"""Uncertainty, convergence and robustness analysis for the three experiments.
-"""
+"""Uncertainty, convergence and robustness analysis for the three experiments."""
 
 import math
 from dataclasses import replace
@@ -34,13 +33,19 @@ def wilson_interval(successes: int, n: int, z: float = 1.96) -> tuple[float, flo
     if n == 0:
         return float("nan"), float("nan")
     proportion = successes / n
-    denominator = 1 + z ** 2 / n
-    centre = (proportion + z ** 2 / (2 * n)) / denominator
-    half_width = z * math.sqrt(proportion * (1 - proportion) / n + z ** 2 / (4 * n ** 2)) / denominator
+    denominator = 1 + z**2 / n
+    centre = (proportion + z**2 / (2 * n)) / denominator
+    half_width = (
+        z
+        * math.sqrt(proportion * (1 - proportion) / n + z**2 / (4 * n**2))
+        / denominator
+    )
     return float(centre - half_width), float(centre + half_width)
 
 
-def bootstrap_ci(values, n_boot: int = 2000, alpha: float = 0.05, seed: int = 0) -> tuple[float, float]:
+def bootstrap_ci(
+    values, n_boot: int = 2000, alpha: float = 0.05, seed: int = 0
+) -> tuple[float, float]:
     """Percentile bootstrap interval for the mean of a continuous measure.
 
     Args:
@@ -60,7 +65,9 @@ def bootstrap_ci(values, n_boot: int = 2000, alpha: float = 0.05, seed: int = 0)
         return float("nan"), float("nan")
     rng = np.random.default_rng(seed)
     draws = rng.choice(defined, size=(n_boot, len(defined)), replace=True).mean(axis=1)
-    return float(np.quantile(draws, alpha / 2)), float(np.quantile(draws, 1 - alpha / 2))
+    return float(np.quantile(draws, alpha / 2)), float(
+        np.quantile(draws, 1 - alpha / 2)
+    )
 
 
 def summarise_trials(trials, label: str = "condition", task: str = "task") -> dict:
@@ -123,7 +130,9 @@ def run_batched(
     return output
 
 
-def between_batch_spread(batches: dict, statistic=lambda trials: np.mean([t.success for t in trials])) -> dict:
+def between_batch_spread(
+    batches: dict, statistic=lambda trials: np.mean([t.success for t in trials])
+) -> dict:
     """Spread of a statistic across independent seed batches.
 
     Args:
@@ -163,7 +172,11 @@ def convergence_curve(trials, grid=None, statistic="success") -> list[dict]:
     """
 
     if grid is None:
-        grid = [n for n in (10, 20, 25, 50, 75, 100, 125, 150, 200, 300, 400, 500) if n <= len(trials)]
+        grid = [
+            n
+            for n in (10, 20, 25, 50, 75, 100, 125, 150, 200, 300, 400, 500)
+            if n <= len(trials)
+        ]
         if grid and grid[-1] != len(trials):
             grid.append(len(trials))
 
@@ -171,10 +184,16 @@ def convergence_curve(trials, grid=None, statistic="success") -> list[dict]:
     for n in grid:
         subset = trials[:n]
         if statistic == "success":
-            successes = int(sum(
-                bool(item) if isinstance(item, (bool, np.bool_)) else bool(item.success)
-                for item in subset
-            ))
+            successes = int(
+                sum(
+                    (
+                        bool(item)
+                        if isinstance(item, (bool, np.bool_))
+                        else bool(item.success)
+                    )
+                    for item in subset
+                )
+            )
             low, high = wilson_interval(successes, n)
             estimate = successes / n
         else:
@@ -182,13 +201,17 @@ def convergence_curve(trials, grid=None, statistic="success") -> list[dict]:
             defined = np.array([v for v in values if v is not None], dtype=float)
             estimate = float(np.mean(defined)) if len(defined) else float("nan")
             low, high = bootstrap_ci(values)
-        curve.append({
-            "n": n,
-            "estimate": float(estimate),
-            "ci_low": low,
-            "ci_high": high,
-            "half_width": (high - low) / 2 if not math.isnan(high) else float("nan"),
-        })
+        curve.append(
+            {
+                "n": n,
+                "estimate": float(estimate),
+                "ci_low": low,
+                "ci_high": high,
+                "half_width": (
+                    (high - low) / 2 if not math.isnan(high) else float("nan")
+                ),
+            }
+        )
     return curve
 
 
@@ -207,9 +230,16 @@ def convergence_report(curves: dict, target_half_width: float = 0.05) -> dict:
 
     report = {}
     for label, curve in curves.items():
-        reached = next((point["n"] for point in curve if point["half_width"] <= target_half_width), None)
+        reached = next(
+            (point["n"] for point in curve if point["half_width"] <= target_half_width),
+            None,
+        )
         final = curve[-1]["estimate"]
-        drift = max(abs(point["estimate"] - final) for point in curve if point["n"] >= (reached or curve[-1]["n"]))
+        drift = max(
+            abs(point["estimate"] - final)
+            for point in curve
+            if point["n"] >= (reached or curve[-1]["n"])
+        )
         report[label] = {
             "n_for_target": reached,
             "final_estimate": final,
@@ -240,9 +270,15 @@ def relative_sensitivity_index(sweep_summaries: dict, metrics=None) -> dict:
     for parameter, by_value in sweep_summaries.items():
         raw[parameter] = {}
         for key in keys:
-            values = np.array([by_value[value].get(key, np.nan) for value in by_value], dtype=float)
+            values = np.array(
+                [by_value[value].get(key, np.nan) for value in by_value], dtype=float
+            )
             values = values[~np.isnan(values)]
-            raw[parameter][key] = float(np.max(values) - np.min(values)) if len(values) > 1 else float("nan")
+            raw[parameter][key] = (
+                float(np.max(values) - np.min(values))
+                if len(values) > 1
+                else float("nan")
+            )
 
     normalised = {parameter: {} for parameter in raw}
     for key in keys:
@@ -251,14 +287,22 @@ def relative_sensitivity_index(sweep_summaries: dict, metrics=None) -> dict:
         for parameter in raw:
             value = raw[parameter][key]
             normalised[parameter][key] = (
-                float(value / largest) if largest and largest > 0 and not math.isnan(value) else 0.0
+                float(value / largest)
+                if largest and largest > 0 and not math.isnan(value)
+                else 0.0
             )
 
     mean_index = {
-        parameter: float(np.mean(list(values.values()))) for parameter, values in normalised.items()
+        parameter: float(np.mean(list(values.values())))
+        for parameter, values in normalised.items()
     }
     order = sorted(mean_index, key=lambda parameter: -mean_index[parameter])
-    return {"raw": raw, "normalised": normalised, "mean_index": mean_index, "order": order}
+    return {
+        "raw": raw,
+        "normalised": normalised,
+        "mean_index": mean_index,
+        "order": order,
+    }
 
 
 def rank_stability(rankings: dict) -> dict:
@@ -278,12 +322,16 @@ def rank_stability(rankings: dict) -> dict:
 
     ranks = {}
     for label in labels:
-        ordered = sorted(parameters, key=lambda parameter: -rankings[label].get(parameter, 0.0))
-        ranks[label] = {parameter: position + 1 for position, parameter in enumerate(ordered)}
+        ordered = sorted(
+            parameters, key=lambda parameter: -rankings[label].get(parameter, 0.0)
+        )
+        ranks[label] = {
+            parameter: position + 1 for position, parameter in enumerate(ordered)
+        }
 
     pairwise = {}
     for i, first in enumerate(labels):
-        for second in labels[i + 1:]:
+        for second in labels[i + 1 :]:
             a = [ranks[first][parameter] for parameter in parameters]
             b = [ranks[second][parameter] for parameter in parameters]
             pairwise[f"{first} vs {second}"] = {
@@ -322,7 +370,9 @@ def marginal_by_factor(summaries, task_meta, factor: str) -> dict:
     output = {}
     for row in summaries:
         level = task_meta[row["task"]][factor]
-        cell = output.setdefault(row["stage"], {}).setdefault(level, {"successes": 0, "n": 0})
+        cell = output.setdefault(row["stage"], {}).setdefault(
+            level, {"successes": 0, "n": 0}
+        )
         cell["successes"] += row["successes"]
         cell["n"] += row["n_trials"]
     for profile, levels in output.items():
@@ -377,8 +427,13 @@ def elongation_effect(summaries, task_meta) -> dict:
     by_shape, by_log = {}, {}
     for row in summaries:
         meta = task_meta[row["task"]]
-        for store, key in ((by_shape, meta["shape"]), (by_log, round(meta["log_aspect"], 3))):
-            cell = store.setdefault(row["stage"], {}).setdefault(key, {"successes": 0, "n": 0})
+        for store, key in (
+            (by_shape, meta["shape"]),
+            (by_log, round(meta["log_aspect"], 3)),
+        ):
+            cell = store.setdefault(row["stage"], {}).setdefault(
+                key, {"successes": 0, "n": 0}
+            )
             cell["successes"] += row["successes"]
             cell["n"] += row["n_trials"]
     for store in (by_shape, by_log):
@@ -407,7 +462,8 @@ def compare_designs(design_results: dict, statistic: str = "success_rate") -> di
         for design, values in design_results.items()
     }
     orderings = {
-        design: sorted(profiles, key=lambda profile: row[profile]) for design, row in table.items()
+        design: sorted(profiles, key=lambda profile: row[profile])
+        for design, row in table.items()
     }
     reference = orderings[next(iter(orderings))]
     return {
@@ -416,14 +472,17 @@ def compare_designs(design_results: dict, statistic: str = "success_rate") -> di
         "ordering_preserved": all(order == reference for order in orderings.values()),
         "max_shift": {
             profile: float(
-                max(row[profile] for row in table.values()) - min(row[profile] for row in table.values())
+                max(row[profile] for row in table.values())
+                - min(row[profile] for row in table.values())
             )
             for profile in profiles
         },
     }
 
 
-def matrix_separation_vs_jitter(variants: dict, coupling: float, jitter_sd: float) -> dict:
+def matrix_separation_vs_jitter(
+    variants: dict, coupling: float, jitter_sd: float
+) -> dict:
     """Size of the per-trial affordance jitter relative to the difference between variants.
 
     Args:
@@ -440,7 +499,8 @@ def matrix_separation_vs_jitter(variants: dict, coupling: float, jitter_sd: floa
     names = list(variants)
     separations = [
         float(np.abs(variants[a] * coupling - variants[b] * coupling).mean())
-        for index, a in enumerate(names) for b in names[index + 1:]
+        for index, a in enumerate(names)
+        for b in names[index + 1 :]
     ]
     mean_separation = float(np.mean(separations))
     expected_jitter = jitter_sd * math.sqrt(2 / math.pi)
@@ -450,7 +510,9 @@ def matrix_separation_vs_jitter(variants: dict, coupling: float, jitter_sd: floa
         "mean_variant_separation": mean_separation,
         "min_variant_separation": float(np.min(separations)),
         "expected_absolute_jitter": expected_jitter,
-        "jitter_to_separation_ratio": expected_jitter / mean_separation if mean_separation else float("nan"),
+        "jitter_to_separation_ratio": (
+            expected_jitter / mean_separation if mean_separation else float("nan")
+        ),
         "zero_entry_fraction": zero_fraction,
         "clipping_bias_on_zero_entries": jitter_sd / math.sqrt(2 * math.pi),
     }
@@ -470,7 +532,9 @@ def informative_cells(summaries, band=INFORMATIVE_BAND) -> dict:
     low, high = band
     flags = {}
     for row in summaries:
-        flags.setdefault(row["stage"], {})[row["task"]] = bool(low <= row["success_rate"] <= high)
+        flags.setdefault(row["stage"], {})[row["task"]] = bool(
+            low <= row["success_rate"] <= high
+        )
     return flags
 
 
@@ -488,7 +552,9 @@ def matrix_contrast(summaries_by_variant: dict) -> dict:
     """
 
     variants = list(summaries_by_variant)
-    rates = {variant: summaries_by_variant[variant]["success_rate"] for variant in variants}
+    rates = {
+        variant: summaries_by_variant[variant]["success_rate"] for variant in variants
+    }
     best = max(rates, key=rates.get)
     worst = min(rates, key=rates.get)
     best_row, worst_row = summaries_by_variant[best], summaries_by_variant[worst]
@@ -498,9 +564,12 @@ def matrix_contrast(summaries_by_variant: dict) -> dict:
         + rates[worst] * (1 - rates[worst]) / worst_row["n_trials"]
     )
     return {
-        "best": best, "worst": worst,
-        "best_successes": best_row["successes"], "best_n": best_row["n_trials"],
-        "worst_successes": worst_row["successes"], "worst_n": worst_row["n_trials"],
+        "best": best,
+        "worst": worst,
+        "best_successes": best_row["successes"],
+        "best_n": best_row["n_trials"],
+        "worst_successes": worst_row["successes"],
+        "worst_n": worst_row["n_trials"],
         "difference": difference,
         "se": standard_error,
         "ci_low": difference - 1.96 * standard_error,
