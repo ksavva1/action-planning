@@ -6,3 +6,6 @@ __pycache__/
 *.png
 *.xlsx
 *.mov
+output_docs
+todo.txt
+*.mp4
